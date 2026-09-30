@@ -44,6 +44,7 @@
     <Option Name="SimulatorGccVersionRiviera" Val="9.3.0"/>
     <Option Name="SimulatorGccVersionActiveHdl" Val="9.3.0"/>
     <Option Name="BoardPart" Val=""/>
+    <Option Name="SourceMgmtMode" Val="DisplayOnly"/>
     <Option Name="ActiveSimSet" Val="sim_1"/>
     <Option Name="DefaultLib" Val="xil_defaultlib"/>
     <Option Name="ProjectType" Val="Default"/>
@@ -211,21 +212,26 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/imports/as2/test_Wrapper_DIP_to_LED.v">
+      <File Path="$PSRCDIR/sources_1/imports/as2/AA_IROM.mem">
         <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="ImportPath" Val="$PPRDIR/../test_Wrapper_DIP_to_LED.v"/>
-          <Attr Name="ImportTime" Val="1790751898"/>
+          <Attr Name="ImportPath" Val="$PPRDIR/../AA_IROM.mem"/>
+          <Attr Name="ImportTime" Val="1790756006"/>
           <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/imports/as2/test_Wrapper_DIP_to_LED_self_checking.v">
+      <File Path="$PSRCDIR/sources_1/imports/as2/AA_DMEM.mem">
         <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="ImportPath" Val="$PPRDIR/../test_Wrapper_DIP_to_LED_self_checking.v"/>
-          <Attr Name="ImportTime" Val="1790751906"/>
+          <Attr Name="ImportPath" Val="$PPRDIR/../AA_DMEM.mem"/>
+          <Attr Name="ImportTime" Val="1790756103"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/as2/test_Wrapper.v">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../test_Wrapper.v"/>
+          <Attr Name="ImportTime" Val="1790756289"/>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
