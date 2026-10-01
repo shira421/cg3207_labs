@@ -184,7 +184,7 @@ module RV #(
     //   PCSrc = 01 : PC  + ExtImm   (branch taken, jal)
     //   PCSrc = 11 : RD1 + ExtImm   (jalr)
     //------------------------------------------------------------------
-    assign PC_Base   = PCSrc[1] ? RD1 : PC ;
+    assign se   = PCSrc[1] ? RD1 : PC ;
     assign PC_Offset = PCSrc[0] ? ExtImm : 32'd4 ;
     assign PC_Sum    = PC_Base + PC_Offset ;
     assign PC_IN     = {PC_Sum[31:1], 1'b0} ;	// jalr target is (rs1 + imm) & ~1. For every other case
