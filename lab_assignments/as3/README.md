@@ -5,11 +5,11 @@ This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 
 
 ## Status
 
-| Task | What was done | Verified (Icarus Verilog / Yosys) | Still to do in Vivado / on the board |
+| Task | What was done | Verified | Still to do |
 |---|---|---|---|
-| 1 Division | Signed + unsigned restoring division in MCycle | Self-checking `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass | Behavioural sim; synthesise MCycle as top, check warnings |
-| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass (all 16 cases × all views, measured cycles, own-operand mode); `cpu_check.py`: 6 703 RV32I checks pass | Behavioural sim, bitstream, board demo |
-| 3 Enhancement | Radix-4 Booth multiplier for signed **and** unsigned multiplication | Gate-level (Yosys netlist) sim of both versions passes; cycles and resources below | Post-synthesis simulation + utilisation report for the slides |
+| 1 Division | Signed + unsigned restoring division in MCycle | `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass. Vivado: MCycle synthesised as top with **no warnings from MCycle.v** (see *Vivado notes*) | — |
+| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass. **Working on the board** (LED = 0xFF, mul 18 / div 33 cycles) | — |
+| 3 Enhancement | Radix-4 Booth multiplier for signed **and** unsigned multiplication | Gate-level (Yosys netlist) sim of both versions passes; cycles and resources below | Vivado post-synthesis simulation + utilisation report, 1–4 slides |
 | 4 Visualisation | — | — | Not started |
 
 ## Where things live
@@ -145,6 +145,51 @@ file. `test_MCycle` runs both versions.
 5. Repeat with `RADIX4_BOOTH=0` and `localparam BOOTH = 0` for the original multiplier.
 6. Afterwards, remove the `-generic` options and set `TOP` / `test_Wrapper` back as tops.
 
+## On the board
+
+Program the board with the bitstream built with `TOP` as top. The CPU clock is 100 MHz / 2^5 =
+3.125 MHz (`CLK_DIV_BITS = 5` in TOP), so the start-up self-check (about 4 240 cycles) looks instant.
+
+| What | How | Expected |
+|---|---|---|
+| Self-check | after programming, or press BTND (reset) | **LED7–0 all on (0xFF)**. LED0 mul, LED1 mulh, LED2 mulhu, LED3 div, LED4 divu, LED5 rem, LED6 remu, LED7 all; an LED that stays off shows which instruction failed |
+| PC / clock | — | LED15–9 show the PC (too fast to read), LED8 the CPU clock |
+| mul cycles | SW15 = 0, SW7–4 = 9 | `00000012` (18) |
+| div cycles | SW15 = 0, SW7–4 = A | `00000021` (33) |
+| −7 × 3 | SW3–0 = 1, SW7–4 = 2 | `FFFFFFEB` (−21) |
+| −2^31 ÷ −1 | SW3–0 = 4, SW7–4 = 5 | `80000000` |
+| own operands | SW15 = 1, SW14–8 = a, SW6–0 = b (7-bit signed) | a × b; hold BTNL: a ÷ b, BTNC: a rem b, BTNR: divu |
+| pause | hold BTNU | display freezes |
+
+Examples in own-operand mode: a = −5, b = 3 → `FFFFFFF1` (−15); BTNL → `FFFFFFFF` (−1); BTNR → `55555553`
+(−5 read as unsigned is 4 294 967 291). a = −6, b = 3 → `FFFFFFEE` (−18); BTNL → `FFFFFFFE` (−2);
+BTNR → `55555553`.
+
+Suggested demo: point at the 8 LEDs (hardware self-check); show case 4 view 5 (div overflow); show
+views 9 and A (18 vs 33 cycles, against 65 for the original signed multiplier); let the TA try their
+own numbers with SW15 up.
+
+## Vivado notes
+
+- **Synthesising MCycle on its own (Task 1):** set `MCycle` as top under Design Sources and run
+  Synthesis only — no implementation or bitstream, as MCycle has no pins. Then set `TOP` back as top.
+- **Warnings that are safe to ignore** when MCycle is top: `[Vivado 12-584] No ports matched
+  'CLK_undiv'`, `[Common 17-55]`, `[Vivado 12-508] No pins matched 'RX_MSF1_reg/C'`,
+  `[Vivado 12-4739] create_clock…` and `[Project 1-236]`. They come from `TOP_Nexys4DDR.xdc`, which
+  is written for `TOP`'s ports. For a completely clean log, right-click the XDC → *Disable File*,
+  synthesise, then *Enable File* again before building `TOP`.
+- **Incremental synthesis:** `[Synth 8-6895]` / `[Synth 8-7130]` (reference checkpoint not suitable)
+  are harmless. Vivado may also overwrite `as3.srcs/utils_1/imports/synth_1/TOP.dcp` with the MCycle
+  checkpoint; turn incremental synthesis off (*Settings → Synthesis → Incremental synthesis*) and undo
+  it with `git checkout -- lab_assignments/as3/as3.srcs/utils_1/imports/synth_1/TOP.dcp`.
+- `WARNING: Too many words specified in data file AA_DMEM.mem` is normal: RARS dumps more data than
+  DMEM holds.
+- After changing a `.mem` file, use *Reset Behavioral Simulation* (xsim otherwise reuses its compiled
+  copy) and reset the synthesis run before building the bitstream.
+- Behavioural simulation stops at 1000 ns by default; type `run all` to run the testbenches to the end.
+- OneDrive can lock files in `*.runs` while syncing ("Failed to delete one or more files"); pause
+  syncing or keep the project outside OneDrive if runs misbehave.
+
 ## Simulating
 
 - **Vivado:** set `test_MCycle` (unit) or `test_Wrapper` (CPU + program) as the simulation top, run the
@@ -159,9 +204,9 @@ file. `test_MCycle` runs both versions.
 ## Checklist
 
 - [x] Task 1 — signed + unsigned division in MCycle, self-checking testbench
-- [ ] Task 1 — synthesise MCycle as top in Vivado, check the warnings
+- [x] Task 1 — synthesise MCycle as top in Vivado, check the warnings
 - [x] Task 2 — RV32M in the CPU, demo program, CPU-level simulation
-- [ ] Task 2 — bitstream and board demo
+- [x] Task 2 — bitstream and board demo
 - [x] Task 3 — radix-4 Booth multiplier, gate-level check
 - [ ] Task 3 — Vivado post-synthesis simulation + utilisation numbers, 1–4 slides
 - [ ] Task 4 — single-file HTML visualisation of the Booth multiplier + complete prompt history
