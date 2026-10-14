@@ -1,7 +1,7 @@
 # Assignment 3 — Multiplication / Division (Week 9 demo)
 
-The Assignment 2 demo state is commit `43888ac` ("edit RV.v"); recover it any time with
-`git checkout 43888ac` (or tag it: `git tag asst2-demo 43888ac && git push origin asst2-demo`). Assignment 3 work continues in the same Vivado project (`as2.xpr`).
+The Assignment 2 state of the repo is tagged `asst2-demo`, so it can always be recovered with
+`git checkout asst2-demo`. Assignment 3 work continues in the same Vivado project (`as2.xpr`).
 
 ## Where things live
 
