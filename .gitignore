@@ -19,3 +19,7 @@ vivado_pid*
 Thumbs.db
 desktop.ini
 .DS_Store
+# Local simulation outputs
+*.vvp
+*.vcd
+*.wdb
