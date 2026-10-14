@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="Top_tb_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="Top_tb" />
+            <top_module name="glbl" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0.000 ns"></ZoomStartTime>
+      <ZoomEndTime time="4,480.001 ns"></ZoomEndTime>
+      <Cursor1Time time="0.000 ns"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="171"></NameColumnWidth>
+      <ValueColumnWidth column_width="90"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="11" />
+   <wave_markers>
+      <marker time="5000000" label="" />
+   </wave_markers>
+   <wvobject fp_name="/Top_tb/clk" type="logic">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/btnU" type="logic">
+      <obj_property name="ElementShortName">btnU</obj_property>
+      <obj_property name="ObjectShortName">btnU</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/btnC" type="logic">
+      <obj_property name="ElementShortName">btnC</obj_property>
+      <obj_property name="ObjectShortName">btnC</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/enable" type="logic">
+      <obj_property name="ElementShortName">enable</obj_property>
+      <obj_property name="ObjectShortName">enable</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/led" type="array">
+      <obj_property name="ElementShortName">led[15:0]</obj_property>
+      <obj_property name="ObjectShortName">led[15:0]</obj_property>
+      <obj_property name="Radix">HEXRADIX</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/data" type="array">
+      <obj_property name="ElementShortName">data[31:0]</obj_property>
+      <obj_property name="ObjectShortName">data[31:0]</obj_property>
+      <obj_property name="Radix">HEXRADIX</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/addr" type="array">
+      <obj_property name="ElementShortName">addr[8:0]</obj_property>
+      <obj_property name="ObjectShortName">addr[8:0]</obj_property>
+      <obj_property name="Radix">HEXRADIX</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/upper_lower" type="logic">
+      <obj_property name="ElementShortName">upper_lower</obj_property>
+      <obj_property name="ObjectShortName">upper_lower</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/dp" type="logic">
+      <obj_property name="ElementShortName">dp</obj_property>
+      <obj_property name="ObjectShortName">dp</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/anode" type="array">
+      <obj_property name="ElementShortName">anode[7:0]</obj_property>
+      <obj_property name="ObjectShortName">anode[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/Top_tb/cathode" type="array">
+      <obj_property name="ElementShortName">cathode[6:0]</obj_property>
+      <obj_property name="ObjectShortName">cathode[6:0]</obj_property>
+   </wvobject>
+</wave_config>
