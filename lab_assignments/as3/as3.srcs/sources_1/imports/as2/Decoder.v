@@ -16,6 +16,7 @@
 -- Revision:
 -- Revision 0.01 - File Created
 -- Revision 0.02 - Assignment 2: full RV32I control (except byte/half-word load/store)
+-- Revision 0.03 - Assignment 3: RV32M (mul, mulh, mulhu, div, divu, rem, remu) through the MCycle unit
 -- Additional Comments: Interface and implementation can be modified.
 --
 ----------------------------------------------------------------------------------
@@ -34,6 +35,8 @@
 ----------------------------------------------------------------------------------
 --	Changes: implemented the decoder as one opcode case statement; enabled ALUSrcA;
 --	         widened ALUSrcB to 2 bits for the jal/jalr link value (PC + 4).
+--	Assignment 3: added MStart, MCycleOp, MCycleSel and MResultSel for the RV32M instructions
+--	         (opcode 0110011, funct7 0000001). mulhsu (funct3 010) is not supported and decodes as a NOP.
 ----------------------------------------------------------------------------------
 */
 
@@ -48,9 +51,13 @@ module Decoder(
     output reg [1:0] ALUSrcA, 	// Src_A select: 00 RD1, 01 zero (lui), 10 PC (auipc, jal, jalr)
     output reg [1:0] ALUSrcB,	// Src_B select: 00 RD2, 01 ExtImm (load, store, lui, auipc, DPImm), 10 constant 4 (jal, jalr link)
     output reg [2:0] ImmSrc, 	// 000 for U, 010 for UJ, 011 for I, 110 for S, 111 for SB.
-    output reg [3:0] ALUControl	// 0000 for add, 0001 for sub, 1110 for and, 1100 for or, 0010 for sll, 1010 for srl, 1011 for sra, 0001 for branch, 0000 for all others.
+    output reg [3:0] ALUControl,	// 0000 for add, 0001 for sub, 1110 for and, 1100 for or, 0010 for sll, 1010 for srl, 1011 for sra, 0001 for branch, 0000 for all others.
     					// Note that the most significant 3 bits are Funct3 for all DP instrns. LSB is the same as Funct[5] for DPReg type and DPImm_shifts. For other DPImms, Funct[5] is 0.
     					// It is the same as sub for branches, and add for all others not mentioned in the line above.
+    output reg MStart,		// Start the MCycle unit (multiply / divide instruction). The processor stalls while MCycle is Busy.
+    output reg [1:0] MCycleOp,	// 00 signed multiply, 01 unsigned multiply, 10 signed divide, 11 unsigned divide
+    output reg MCycleSel,	// Register write data comes from MCycle instead of the ALU
+    output reg MResultSel	// 0: MCycle Result1 (low word of product / quotient), 1: Result2 (high word / remainder)
     );
 // Change wire to reg if assigned inside a procedural (always) block. However, where it is easy enough, use assign instead of always.
 // A 2-1 multiplexing can be done easily using an assign with a ternary operator
@@ -67,6 +74,8 @@ module Decoder(
 	localparam OP_LUI    = 7'b0110111 ;	// lui
 	localparam OP_AUIPC  = 7'b0010111 ;	// auipc
 
+	localparam FUNCT7_M  = 7'b0000001 ;	// RV32M instructions share OP_DPREG, with this funct7
+
 	always@(*) begin
 		// Defaults = a NOP. Every signal that changes processor state (RegWrite, MemWrite, PCS,
 		// and MemtoReg, which drives MemRead) defaults to a definite 0, never x, so an
@@ -79,11 +88,35 @@ module Decoder(
 		ALUSrcB    = 2'b00 ;
 		ImmSrc     = 3'bxxx ;	// don't care unless an instruction below uses the immediate
 		ALUControl = 4'b0000 ;	// add
+		MStart     = 1'b0 ;
+		MCycleOp   = 2'b00 ;
+		MCycleSel  = 1'b0 ;
+		MResultSel = 1'b0 ;
 
 		case(Opcode)
-			OP_DPREG: begin		// rd = rs1 op rs2
-				RegWrite   = 1'b1 ;
-				ALUControl = {Funct3, Funct7[5]} ;	// Funct7[5] picks sub over add, sra over srl
+			OP_DPREG: begin
+				if( Funct7 == FUNCT7_M ) begin	// RV32M: rd = rs1 op rs2, computed by MCycle over several cycles
+					//                      MCycleOp           MResultSel
+					case( Funct3 )
+						3'b000: begin MCycleOp = 2'b00 ; MResultSel = 1'b0 ; end	// mul    low word  (same for signed / unsigned)
+						3'b001: begin MCycleOp = 2'b00 ; MResultSel = 1'b1 ; end	// mulh   high word, signed x signed
+						3'b011: begin MCycleOp = 2'b01 ; MResultSel = 1'b1 ; end	// mulhu  high word, unsigned x unsigned
+						3'b100: begin MCycleOp = 2'b10 ; MResultSel = 1'b0 ; end	// div    quotient, signed
+						3'b101: begin MCycleOp = 2'b11 ; MResultSel = 1'b0 ; end	// divu   quotient, unsigned
+						3'b110: begin MCycleOp = 2'b10 ; MResultSel = 1'b1 ; end	// rem    remainder, signed
+						3'b111: begin MCycleOp = 2'b11 ; MResultSel = 1'b1 ; end	// remu   remainder, unsigned
+						default: ;							// mulhsu (signed x unsigned): not supported
+					endcase
+					if( Funct3 != 3'b010 ) begin	// mulhsu stays a NOP
+						RegWrite  = 1'b1 ;	// RV.v only lets the write through once MCycle is no longer Busy
+						MStart    = 1'b1 ;
+						MCycleSel = 1'b1 ;
+					end
+				end
+				else begin			// rd = rs1 op rs2
+					RegWrite   = 1'b1 ;
+					ALUControl = {Funct3, Funct7[5]} ;	// Funct7[5] picks sub over add, sra over srl
+				end
 			end
 			OP_DPIMM: begin		// rd = rs1 op imm
 				RegWrite   = 1'b1 ;

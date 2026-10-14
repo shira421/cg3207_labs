@@ -2,23 +2,24 @@
 //////////////////////////////////////////////////////////////////////////////////
 // Company: NUS
 // Engineer: Shahzor Ahmad, Rajesh C Panicker
-// 
+//
 // Create Date: 27.09.2016 10:59:44
-// Design Name: 
+// Design Name:
 // Module Name: MCycle
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
+// Project Name:
+// Target Devices:
+// Tool Versions:
+// Description:
+//
+// Dependencies:
+//
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Assignment 3: signed/unsigned division (Task 1), radix-4 Booth signed multiplication (Task 3)
 // Additional Comments:
-// 
+//
 //////////////////////////////////////////////////////////////////////////////////
-/* 
+/*
 ----------------------------------------------------------------------------------
 --	(c) Shahzor Ahmad, Rajesh C Panicker
 --	License terms :
@@ -31,9 +32,38 @@
 ----------------------------------------------------------------------------------
 */
 
+/*
+----------------------------------------------------------------------------------
+--	Changes (Assignment 3):
+--
+--	Task 1 - Division (MCycleOp = 10 signed, 11 unsigned). Restoring division on the
+--	         magnitudes, one quotient bit per cycle, 'width' cycles:
+--	           start : R:Q = 0 : |Operand1|, D = |Operand2| (magnitudes only for signed division),
+--	                   and remember the signs the results must have.
+--	           each  : shift R:Q left by one; if R >= D then R = R - D and the new quotient bit is 1.
+--	           end   : quotient negated if the operand signs differ, remainder takes the sign of the dividend.
+--	         Results follow RISC-V: quotient rounds towards zero, (-2^(w-1)) / (-1) = -2^(w-1) remainder 0.
+--	         Division by zero is assumed not to happen, but still gives the RISC-V results
+--	         (quotient all ones, remainder = dividend).
+--
+--	Task 3 - Multiplication (MCycleOp = 00 signed, 01 unsigned) with radix-4 (modified) Booth recoding.
+--	         Each cycle looks at 3 multiplier bits (2 new + 1 from the previous pair), recodes them
+--	         into one digit in {-2, -1, 0, +1, +2}, adds digit * multiplicand to the upper part of the
+--	         product register and shifts the whole register right by 2 (arithmetic).
+--	         Both operands are first extended by one bit (sign bit for signed, 0 for unsigned), so the
+--	         same hardware does signed and unsigned multiplication: (width+1)-bit signed operands,
+--	         multiplier padded to width+2 bits (an even number of bits), width/2+1 iterations.
+--	           Cycles  : signed 2*width+1 -> width/2+2, unsigned width+1 -> width/2+2  (32-bit: 65 / 33 -> 18)
+--	           Adder   : 2*width bits -> width+3 bits                                  (32-bit: 64 -> 35 bits)
+--	           Product register: 2*width-bit sum + two 2*width-bit shift registers -> (width+3) + (width+2) bits
+--	         Set RADIX4_BOOTH = 0 to get the original shift-and-add multiplier back, to compare.
+----------------------------------------------------------------------------------
+*/
+
 module MCycle
 
-    #(parameter width = 4) // Keep this at 4 to verify your algorithms with 4 bit numbers (easier). When using MCycle as a component in RV, generic map it to 32.
+    #(parameter width = 4, // Keep this at 4 to verify your algorithms with 4 bit numbers (easier). When using MCycle as a component in RV, generic map it to 32.
+      parameter RADIX4_BOOTH = 1) // 1: radix-4 Booth multiplication (Task 3). 0: original shift-and-add multiplication. width must be even.
     (
         input CLK,
         input RESET, // Connect this to the reset of the RV processor.
@@ -45,26 +75,31 @@ module MCycle
         output reg [width-1:0] Result2, // MSW of Product / Remainder
         output reg Busy // Set immediately when Start is set. Cleared when the Results become ready. This bit can be used to stall the processor while multi-cycle operations are on.
     );
-    
+
 // use the Busy signal to reset WE_PC to 0 in RV.v (aka "freeze" PC). The two signals are complements of each other
 // since the IDLE_PROCESS is combinational, instantaneously asserts Busy once Start is asserted
 
     localparam IDLE = 1'b0 ;
     localparam COMPUTING = 1'b1 ;
 
-    // Last value of count for each multiplication. Part-selected where they are
+    // Last value of count for each operation. Part-selected where they are
     // used, so the comparisons against count do not silently widen it.
-    localparam COUNT_LAST_W  = width - 1 ;    // unsigned multiply
-    localparam COUNT_LAST_2W = 2*width - 1 ;  // signed multiply, whose operands are sign extended to 2*width
+    localparam COUNT_LAST_W  = width - 1 ;    // unsigned multiply, division (one bit per cycle)
+    localparam COUNT_LAST_2W = 2*width - 1 ;  // original signed multiply, whose operands are sign extended to 2*width
+    localparam COUNT_LAST_R4 = width/2 ;      // radix-4 Booth multiply: (width+2)/2 iterations, two multiplier bits per cycle
 
     reg state = IDLE ;
     reg n_state = IDLE ;
 
     reg done = 1'b0 ;
     reg [7:0] count = 0 ; // assuming no computation takes more than 256 cycles.
-    reg [2*width-1:0] temp_sum = 0 ;
-    reg [2*width-1:0] shifted_op1 = 0 ;
-    reg [2*width-1:0] shifted_op2 = 0 ;
+    reg [2*width-1:0] temp_sum = 0 ;    // product (shift-and-add), or {remainder, quotient} (division)
+    reg [2*width-1:0] shifted_op1 = 0 ; // multiplicand (shifted left for shift-and-add)
+    reg [2*width-1:0] shifted_op2 = 0 ; // multiplier (shifted right), or the divisor magnitude
+    reg [width+2:0] booth_acc = 0 ;     // Booth: upper part of the product register. (width+1)-bit multiplicand + 2 bits for +-2M and the sign
+    reg booth_prev = 1'b0 ;             // Booth: the multiplier bit shifted out last (b(-1) = 0 at the start)
+    reg neg_quotient = 1'b0 ;           // division: negate the quotient at the end
+    reg neg_remainder = 1'b0 ;          // division: negate the remainder at the end
 
     // What each of the above becomes at the next edge. The computation is
     // written as a sequence of steps over these, so that the registers
@@ -74,8 +109,24 @@ module MCycle
     reg [2*width-1:0] n_temp_sum ;
     reg [2*width-1:0] n_shifted_op1 ;
     reg [2*width-1:0] n_shifted_op2 ;
+    reg [width+2:0] n_booth_acc ;
+    reg n_booth_prev ;
+    reg n_neg_quotient ;
+    reg n_neg_remainder ;
     reg [width-1:0] n_Result1 ;
     reg [width-1:0] n_Result2 ;
+
+    // Combinational intermediates used inside COMPUTING_PROCESS
+    reg [2:0] booth_bits ;              // {b(2i+1), b(2i), b(2i-1)}
+    reg [width+2:0] booth_pp ;          // |digit| * multiplicand, width+3 bits
+    reg booth_neg ;                     // digit is negative: add ~pp + 1
+    reg [width+2:0] booth_sum ;
+    reg [2*width:0] div_shifted ;       // {R, Q} shifted left by one, with the bit shifted out of R kept
+    reg [width+1:0] div_diff ;          // trial subtraction R - D, sign in the MSB
+    reg [width-1:0] dividend_mag ;
+    reg [width-1:0] divisor_mag ;
+    reg op1_neg ;
+    reg op2_neg ;
 
     always@(*) begin : IDLE_PROCESS
         // default outputs
@@ -107,9 +158,27 @@ module MCycle
         n_temp_sum = temp_sum ;
         n_shifted_op1 = shifted_op1 ;
         n_shifted_op2 = shifted_op2 ;
+        n_booth_acc = booth_acc ;
+        n_booth_prev = booth_prev ;
+        n_neg_quotient = neg_quotient ;
+        n_neg_remainder = neg_remainder ;
         n_Result1 = Result1 ;
         n_Result2 = Result2 ;
         n_done = 1'b0 ;
+
+        // defaults for the intermediates, so that none of them is inferred as a latch
+        booth_bits = 3'b000 ;
+        booth_pp = 0 ;
+        booth_neg = 1'b0 ;
+        booth_sum = 0 ;
+        div_shifted = 0 ;
+        div_diff = 0 ;
+
+        // Signs and magnitudes of the operands, for division. Only signed division (MCycleOp = 10) looks at the signs.
+        op1_neg = ~MCycleOp[0] & Operand1[width-1] ;
+        op2_neg = ~MCycleOp[0] & Operand2[width-1] ;
+        dividend_mag = op1_neg ? -Operand1 : Operand1 ;
+        divisor_mag  = op2_neg ? -Operand2 : Operand2 ;
 
         // n_state == COMPUTING and state == IDLE implies we are just transitioning into COMPUTING
         if( RESET | (n_state == COMPUTING & state == IDLE) ) begin // 2nd condition is true during the very 1st clock cycle of the multiplication
@@ -117,11 +186,57 @@ module MCycle
             n_temp_sum = 0 ;
             n_shifted_op1 = { {width{~MCycleOp[0] & Operand1[width-1]}}, Operand1 } ; // sign extend the operands
             n_shifted_op2 = { {width{~MCycleOp[0] & Operand2[width-1]}}, Operand2 } ;
+            n_booth_acc = 0 ;
+            n_booth_prev = 1'b0 ;
+            n_neg_quotient = 1'b0 ;
+            n_neg_remainder = 1'b0 ;
+            if( ~MCycleOp[1] & (RADIX4_BOOTH != 0) ) begin // Booth multiply: operands as (width+1)-bit signed numbers
+                n_shifted_op1 = { {(width-1){1'b0}}, ~MCycleOp[0] & Operand1[width-1], Operand1 } ;                // multiplicand M, width+1 bits
+                n_shifted_op2 = { {(width-2){1'b0}}, {2{~MCycleOp[0] & Operand2[width-1]}}, Operand2 } ;           // multiplier, width+2 bits
+            end
+            if( MCycleOp[1] ) begin // division: R:Q = 0:|dividend|, D = |divisor|
+                n_temp_sum = { {width{1'b0}}, dividend_mag } ;
+                n_shifted_op2 = { {width{1'b0}}, divisor_mag } ;
+                n_neg_quotient = (op1_neg ^ op2_neg) & (|Operand2) ; // x / 0 stays all ones, as RISC-V specifies
+                n_neg_remainder = op1_neg ;                           // remainder has the sign of the dividend
+            end
         end
 
         // Guarded so that the cycle in which Busy falls - the one the processor uses to write the result back - does not run another iteration over it, and so that the results are held while idle.
         if( n_state == COMPUTING ) begin
-            if( ~MCycleOp[1] ) begin // Multiply
+            if( ~MCycleOp[1] & (RADIX4_BOOTH != 0) ) begin // Multiply (signed and unsigned), radix-4 Booth (Task 3)
+                // Product register = {booth_acc, multiplier}. The multiplier occupies shifted_op2[width+1:0] and is
+                // shifted out two bits per cycle, while the product bits are shifted in from booth_acc.
+                // The multiplicand M is shifted_op1[width:0].
+                booth_bits = { n_shifted_op2[1:0], n_booth_prev } ;
+
+                // Recode the 3 bits into a digit in {-2,-1,0,+1,+2}:
+                //   000, 111 : 0      001, 010 : +M     011 : +2M     100 : -2M     101, 110 : -M
+                case( booth_bits )
+                    3'b001, 3'b010, 3'b101, 3'b110: booth_pp = { {2{n_shifted_op1[width]}}, n_shifted_op1[width:0] } ; // M
+                    3'b011, 3'b100:                 booth_pp = { n_shifted_op1[width], n_shifted_op1[width:0], 1'b0 } ; // 2M
+                    default:                        booth_pp = 0 ;                                                       // 0
+                endcase
+                booth_neg = booth_bits[2] & ~(booth_bits[1] & booth_bits[0]) ; // 100, 101, 110 subtract
+
+                // The only adder for multiplication: width+3 bits, subtraction as ~pp + 1 through the carry in
+                booth_sum = n_booth_acc + (booth_pp ^ {(width+3){booth_neg}}) + { {(width+2){1'b0}}, booth_neg } ;
+
+                // Arithmetic shift right by 2 of {booth_sum, multiplier}
+                n_booth_prev = n_shifted_op2[1] ;
+                n_shifted_op2 = { {(width-2){1'b0}}, booth_sum[1:0], n_shifted_op2[width+1:2] } ;
+                n_booth_acc = { {2{booth_sum[width+2]}}, booth_sum[width+2:2] } ;
+
+                if( n_count == COUNT_LAST_R4[7:0] ) // last cycle?
+                    n_done = 1'b1 ;
+
+                n_count = n_count + 1 ;
+
+                // Product = {booth_acc, multiplier register}; its low 2*width bits are the result
+                n_Result1 = n_shifted_op2[width-1:0] ;
+                n_Result2 = { n_booth_acc[width-3:0], n_shifted_op2[width+1:width] } ;
+            end
+            else if( ~MCycleOp[1] ) begin // Multiply, original shift-and-add (only used when RADIX4_BOOTH = 0)
                 // if( ~MCycleOp[0] ), takes 2*'width' cycles to execute, returns signed(Operand1)*signed(Operand2)
                 // if( MCycleOp[0] ), takes 'width' cycles to execute, returns unsigned(Operand1)*unsigned(Operand2)
                 if( n_shifted_op2[0] ) // add only if b0 = 1
@@ -134,17 +249,32 @@ module MCycle
                     n_done = 1'b1 ;
 
                 n_count = n_count + 1 ;
-            end
-            else begin // Supposed to be Divide. The dummy code below takes 1 cycle to execute, just returns the operands. Change this to signed [ if(~MCycleOp[0]) ] and unsigned [ if(MCycleOp[0]) ] division.
-                // TODO (students): replace the one-cycle division placeholder.
-                // It currently returns Operand1 in Result2 and Operand2 in Result1.
-                n_temp_sum[2*width-1 : width] = Operand1 ;
-                n_temp_sum[width-1 : 0] = Operand2 ;
-                n_done = 1'b1 ;
-            end
 
-            n_Result2 = n_temp_sum[2*width-1 : width] ;
-            n_Result1 = n_temp_sum[width-1 : 0] ;
+                n_Result2 = n_temp_sum[2*width-1 : width] ;
+                n_Result1 = n_temp_sum[width-1 : 0] ;
+            end
+            else begin // Divide (Task 1): signed if( ~MCycleOp[0] ), unsigned if( MCycleOp[0] ). Takes 'width' cycles.
+                // temp_sum = {R, Q}: R in the upper half, the remaining dividend bits / quotient bits in the lower half.
+                // Shift left by one. R can reach 2D-1 after the shift, so the bit shifted out of R is kept (div_shifted[2*width]).
+                div_shifted = { n_temp_sum, 1'b0 } ;
+
+                // Trial subtraction (R - D), width+2 bits so the MSB is the sign
+                div_diff = { 1'b0, div_shifted[2*width : width] } - { 2'b00, n_shifted_op2[width-1:0] } ;
+
+                if( ~div_diff[width+1] ) // R >= D: keep the difference, quotient bit = 1
+                    n_temp_sum = { div_diff[width-1:0], div_shifted[width-1:1], 1'b1 } ;
+                else                     // R < D: restore (keep the shifted R), quotient bit = 0
+                    n_temp_sum = { div_shifted[2*width-1:1], 1'b0 } ;
+
+                if( n_count == COUNT_LAST_W[7:0] ) // last cycle?
+                    n_done = 1'b1 ;
+
+                n_count = n_count + 1 ;
+
+                // Apply the signs. Only the value after the last cycle is used.
+                n_Result1 = n_neg_quotient  ? -n_temp_sum[width-1:0]       : n_temp_sum[width-1:0] ;       // quotient
+                n_Result2 = n_neg_remainder ? -n_temp_sum[2*width-1:width] : n_temp_sum[2*width-1:width] ; // remainder
+            end
         end
     end
 
@@ -156,6 +286,10 @@ module MCycle
         temp_sum <= n_temp_sum ;
         shifted_op1 <= n_shifted_op1 ;
         shifted_op2 <= n_shifted_op2 ;
+        booth_acc <= n_booth_acc ;
+        booth_prev <= n_booth_prev ;
+        neg_quotient <= n_neg_quotient ;
+        neg_remainder <= n_neg_remainder ;
         Result1 <= n_Result1 ;
         Result2 <= n_Result2 ;
     end

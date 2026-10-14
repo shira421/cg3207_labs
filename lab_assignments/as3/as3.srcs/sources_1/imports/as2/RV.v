@@ -16,6 +16,7 @@
 -- Revision:
 -- Revision 0.01 - File Created
 -- Revision 0.02 - Assignment 2: single-cycle datapath for RV32I (except byte/half-word load/store)
+-- Revision 0.03 - Assignment 3: MCycle unit for RV32M (mul, mulh, mulhu, div, divu, rem, remu), stalling while Busy
 -- Additional Comments: The interface SHOULD NOT be modified (except making output reg) unless you modify Wrapper.v/vhd too.
                         The implementation can be modified.
 --
@@ -35,6 +36,8 @@
 ----------------------------------------------------------------------------------
 --	Changes: instruction field extraction, Src_A / Src_B / Result multiplexers,
 --	         next-PC logic (the second and last 32-bit adder), wider ALUSrcA/ALUSrcB/PCSrc.
+--	Assignment 3: MCycle (width 32) on RD1 / RD2; WE_PC = ~Busy stalls the processor while it works;
+--	         register writes are held off until Busy falls; a multiplexer picks the ALU or MCycle result.
 ----------------------------------------------------------------------------------
 */
 
@@ -97,6 +100,10 @@ module RV #(
     wire [1:0] ALUSrcB ;	// 00 RD2, 01 ExtImm, 10 constant 4
     //wire [2:0] ImmSrc ;
     wire [3:0] ALUControl ;
+    wire MStart ;		// RV32M instruction: start MCycle
+    wire [1:0] MCycleOp ;	// 00 signed mul, 01 unsigned mul, 10 signed div, 11 unsigned div
+    wire MCycleSel ;		// write the MCycle result instead of the ALU result
+    wire MResultSel ;		// 0: MCycle Result1 (low word / quotient), 1: Result2 (high word / remainder)
 
     // PC_Logic signals
     //wire [1:0] PCS
@@ -118,14 +125,21 @@ module RV #(
     wire [31:0] PC_IN ;
     //wire [31:0] PC ;
 
+    // MCycle signals
+    wire [31:0] MCycleResult1 ;	// low word of product / quotient
+    wire [31:0] MCycleResult2 ;	// high word of product / remainder
+    wire Busy ;
+    wire [31:0] MCycleResult ;
+
     // Other internal signals here
     wire [31:0] PC_Base ;	// PC for PC + 4, branches and jal; RD1 (rs1) for jalr
     wire [31:0] PC_Offset ;	// 4, or the immediate for a taken branch / jal / jalr
     wire [31:0] PC_Sum ;	// PC_Base + PC_Offset
     wire [31:0] Result ;
+    wire [31:0] ExecResult ;	// ALU or MCycle result
 
     assign MemRead = MemtoReg; // This is needed for the proper functionality of some devices such as UART CONSOLE
-    assign WE_PC = 1 ;  // Will need to control it for multi-cycle operations (Multiplication, Division) and/or Pipelining with hazard hardware.
+    assign WE_PC = ~Busy ;  // Stall (hold the PC, and hence the instruction) while MCycle is working.
 
     assign ReadData = ReadData_in;       // Change datapath as appropriate if supporting lb/lbu/lh/lhu
     assign WriteData_out = WriteData;    // Change datapath as appropriate if supporting sb/sh
@@ -148,8 +162,12 @@ module RV #(
     //------------------------------------------------------------------
     // Register file write port
     //------------------------------------------------------------------
-    assign WE     = RegWrite ;
-    assign Result = MemtoReg ? ReadData : ALUResult ;	// lw writes memory data, everything else writes the ALU result
+    // While MCycle is Busy, the instruction is held and nothing is written. The result is written in the
+    // cycle in which Busy falls (Result1/Result2 are already final then), together with the PC update.
+    assign WE     = RegWrite & ~Busy ;
+    assign MCycleResult = MResultSel ? MCycleResult2 : MCycleResult1 ;
+    assign ExecResult   = MCycleSel ? MCycleResult : ALUResult ;	// RV32M instructions write the MCycle result
+    assign Result = MemtoReg ? ReadData : ExecResult ;	// lw writes memory data, everything else the ALU / MCycle result
     assign WD     = Result ;
 
     //------------------------------------------------------------------
@@ -221,7 +239,11 @@ module RV #(
                     ALUSrcA,
                     ALUSrcB,
                     ImmSrc,
-                    ALUControl
+                    ALUControl,
+                    MStart,
+                    MCycleOp,
+                    MCycleSel,
+                    MResultSel
                 );
 
     // Instantiate PC_Logic
@@ -239,6 +261,19 @@ module RV #(
                     ALUControl,
                     ALUResult,
                     ALUFlags
+                );
+
+    // Instantiate MCycle (multiplier / divider). Operands come straight from the register file.
+    MCycle #(.width(32)) MCycle1(
+                    .CLK(CLK),
+                    .RESET(RESET),
+                    .Start(MStart),
+                    .MCycleOp(MCycleOp),
+                    .Operand1(RD1),		// multiplicand / dividend (rs1)
+                    .Operand2(RD2),		// multiplier / divisor (rs2)
+                    .Result1(MCycleResult1),
+                    .Result2(MCycleResult2),
+                    .Busy(Busy)
                 );
 
     // Instantiate ProgramCounter

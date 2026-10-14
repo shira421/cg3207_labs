@@ -8,7 +8,9 @@ AI assistance declaration (CG3207 lab manual):
            (together with the group's RTL files)
 
 What it does
-  1. Finds the RTL files (Shifter, ALU, Extend, Decoder, PC_Logic, RegFile, ProgramCounter,
+  (Assignment 3 copy: MCycle.v added to the file list and RV32M to the decoder model; the
+   multi-cycle instructions themselves are checked by test_MCycle.v and test_Wrapper.v.)
+  1. Finds the RTL files (Shifter, ALU, Extend, Decoder, PC_Logic, RegFile, ProgramCounter, MCycle,
      RV, Wrapper) in a Vivado project folder, or any folder below --root.
   2. Writes ONE Verilog testbench that
        - tests every module on its own, with expected values from a Python model,
@@ -392,7 +394,7 @@ CANON.update({
 # =============================================================================================
 # Finding files and lines
 # =============================================================================================
-RTL_FILES = ['Shifter.v', 'ALU.v', 'Extend.v', 'Decoder.v', 'PC_Logic.v', 'RegFile.v', 'ProgramCounter.v', 'RV.v', 'Wrapper.v']
+RTL_FILES = ['Shifter.v', 'ALU.v', 'Extend.v', 'Decoder.v', 'PC_Logic.v', 'RegFile.v', 'ProgramCounter.v', 'MCycle.v', 'RV.v', 'Wrapper.v']
 SKIP_DIR = re.compile(r'\.(sim|runs|cache|gen|hw|ip_user_files)$|^\.Xil$|^\.git$|^' + WORK_DIR_NAME + '$', re.I)
 
 
@@ -503,7 +505,9 @@ def decoder_model(op, f3, f7):
     state-changing signals are returned."""
     b5 = (f7 >> 5) & 1
     o = dict(PCS=0, RegWrite=0, MemWrite=0, MemtoReg=0, ALUSrcA=0, ALUSrcB=0, ImmSrc=None, ALUControl=0)
-    if op == 0x33:
+    if op == 0x33 and f7 == 0x01:     # Assignment 3: RV32M goes to MCycle (mulhsu, funct3 010, is a NOP).
+        o.update(RegWrite=0 if f3 == 2 else 1)  # MCycle itself is tested by test_MCycle.v / test_Wrapper.v
+    elif op == 0x33:
         o.update(RegWrite=1, ALUControl=(f3 << 1) | b5)
     elif op == 0x13:
         o.update(RegWrite=1, ALUSrcB=1, ImmSrc=3, ALUControl=(f3 << 1) | (b5 if (f3 & 3) == 1 else 0))
@@ -678,7 +682,7 @@ def gen_decoder(S, rnd):
     vec = []
     for op in by_op:
         for f3 in range(8):
-            for f7 in (0x00, 0x20, rnd.getrandbits(7) & ~0x20, rnd.getrandbits(7) | 0x20):
+            for f7 in (0x00, 0x20, rnd.getrandbits(7) & ~0x20, rnd.getrandbits(7) | 0x20) + ((0x01,) if op == 0x33 else ()):
                 vec.append((op, f3, f7))
     for op in range(128):
         if op not in by_op:
@@ -699,6 +703,15 @@ def gen_decoder(S, rnd):
                 tags = ['DEC_DEF_' + sig, 'DEC_DEFAULT']
             S.chk('unit', 'Decoder', 'd_' + sig, widths[sig], val,
                   'Decoder opcode=%s (%s) funct3=%s funct7=%s: %s' % (format(op, '07b'), name, format(f3, '03b'), format(f7, '07b'), sig), tags)
+        # Assignment 3: MCycle control (RV32M = opcode 0110011, funct7 0000001; mulhsu unsupported)
+        is_m = op == 0x33 and f7 == 0x01 and f3 != 2
+        mexp = dict(MStart=int(is_m), MCycleSel=int(is_m))
+        if is_m:
+            mexp['MCycleOp'] = {0: 0, 1: 0, 3: 1, 4: 2, 5: 3, 6: 2, 7: 3}[f3]
+            mexp['MResultSel'] = {0: 0, 1: 1, 3: 1, 4: 0, 5: 0, 6: 1, 7: 1}[f3]
+        for sig, val in mexp.items():
+            S.chk('unit', 'Decoder', 'd_' + sig, 2 if sig == 'MCycleOp' else 1, val,
+                  'Decoder opcode=%s funct3=%s funct7=%s: %s' % (format(op, '07b'), format(f3, '03b'), format(f7, '07b'), sig), ['DEC_DEFAULT'])
 
 
 def gen_pclogic(S):
@@ -914,7 +927,9 @@ module tb_cpu_check;
   // Decoder
   reg [6:0] d_op; reg [2:0] d_f3; reg [6:0] d_f7;
   wire [1:0] d_PCS; wire d_RegWrite, d_MemWrite, d_MemtoReg; wire [1:0] d_ALUSrcA, d_ALUSrcB; wire [2:0] d_ImmSrc; wire [3:0] d_ALUControl;
-  Decoder u_dec(d_op, d_f3, d_f7, d_PCS, d_RegWrite, d_MemWrite, d_MemtoReg, d_ALUSrcA, d_ALUSrcB, d_ImmSrc, d_ALUControl);
+  wire d_MStart, d_MCycleSel, d_MResultSel; wire [1:0] d_MCycleOp;
+  Decoder u_dec(d_op, d_f3, d_f7, d_PCS, d_RegWrite, d_MemWrite, d_MemtoReg, d_ALUSrcA, d_ALUSrcB, d_ImmSrc, d_ALUControl,
+                d_MStart, d_MCycleOp, d_MCycleSel, d_MResultSel);
   // PC_Logic
   reg [1:0] p_pcs; reg [2:0] p_f3; reg [2:0] p_flags; wire [1:0] p_src;
   PC_Logic u_pcl(p_pcs, p_f3, p_flags, p_src);
