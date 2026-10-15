@@ -15,7 +15,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
-// Revision 0.02 - Assignment 3: signed/unsigned division (Task 1), radix-4 Booth signed multiplication (Task 3)
+// Revision 0.02 - Assignment 3: signed/unsigned division (Task 1), radix-2 Booth signed multiplication (Task 3)
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -46,24 +46,24 @@
 --	         Division by zero is assumed not to happen, but still gives the RISC-V results
 --	         (quotient all ones, remainder = dividend).
 --
---	Task 3 - Multiplication (MCycleOp = 00 signed, 01 unsigned) with radix-4 (modified) Booth recoding.
---	         Each cycle looks at 3 multiplier bits (2 new + 1 from the previous pair), recodes them
---	         into one digit in {-2, -1, 0, +1, +2}, adds digit * multiplicand to the upper part of the
---	         product register and shifts the whole register right by 2 (arithmetic).
---	         Both operands are first extended by one bit (sign bit for signed, 0 for unsigned), so the
---	         same hardware does signed and unsigned multiplication: (width+1)-bit signed operands,
---	         multiplier padded to width+2 bits (an even number of bits), width/2+1 iterations.
---	           Cycles  : signed 2*width+1 -> width/2+2, unsigned width+1 -> width/2+2  (32-bit: 65 / 33 -> 18)
---	           Adder   : 2*width bits -> width+3 bits                                  (32-bit: 64 -> 35 bits)
---	           Product register: 2*width-bit sum + two 2*width-bit shift registers -> (width+3) + (width+2) bits
---	         Set RADIX4_BOOTH = 0 to get the original shift-and-add multiplier back, to compare.
+--	Task 3 - Signed multiplication (MCycleOp = 00) with radix-2 Booth's algorithm (AI-assisted, see
+--	         the prompt history). Registers A (width+1 bits, starts at 0), M (the multiplicand, sign
+--	         extended to width+1 bits), Q (the multiplier) and Q-1 (starts at 0). Each cycle looks at
+--	         {Q[0], Q-1}:  01 -> A = A + M,   10 -> A = A - M,   00 / 11 -> A unchanged,
+--	         then shifts {A, Q, Q-1} right by one bit, copying the sign bit of A (arithmetic shift).
+--	         After 'width' cycles the product is {A[width-1:0], Q}.
+--	         A and M have one extra bit so that -M fits even when M is the most negative number.
+--	           Cycles : signed 2*width -> width iterations  (32-bit: 65 -> 33 cycles including write-back)
+--	           Adder  : a (width+1)-bit adder/subtractor instead of the 2*width-bit adder for signed numbers
+--	         Unsigned multiplication (MCycleOp = 01) is the original shift-and-add (width cycles).
+--	         Set BOOTH = 0 to get the original signed shift-and-add multiplier back, to compare.
 ----------------------------------------------------------------------------------
 */
 
 module MCycle
 
     #(parameter width = 4, // Keep this at 4 to verify your algorithms with 4 bit numbers (easier). When using MCycle as a component in RV, generic map it to 32.
-      parameter RADIX4_BOOTH = 1) // 1: radix-4 Booth multiplication (Task 3). 0: original shift-and-add multiplication. width must be even.
+      parameter BOOTH = 1) // 1: radix-2 Booth signed multiplication (Task 3). 0: original shift-and-add signed multiplication.
     (
         input CLK,
         input RESET, // Connect this to the reset of the RV processor.
@@ -84,9 +84,8 @@ module MCycle
 
     // Last value of count for each operation. Part-selected where they are
     // used, so the comparisons against count do not silently widen it.
-    localparam COUNT_LAST_W  = width - 1 ;    // unsigned multiply, division (one bit per cycle)
+    localparam COUNT_LAST_W  = width - 1 ;    // Booth signed multiply, unsigned multiply, division (one bit per cycle)
     localparam COUNT_LAST_2W = 2*width - 1 ;  // original signed multiply, whose operands are sign extended to 2*width
-    localparam COUNT_LAST_R4 = width/2 ;      // radix-4 Booth multiply: (width+2)/2 iterations, two multiplier bits per cycle
 
     reg state = IDLE ;
     reg n_state = IDLE ;
@@ -96,8 +95,10 @@ module MCycle
     reg [2*width-1:0] temp_sum = 0 ;    // product (shift-and-add), or {remainder, quotient} (division)
     reg [2*width-1:0] shifted_op1 = 0 ; // multiplicand (shifted left for shift-and-add)
     reg [2*width-1:0] shifted_op2 = 0 ; // multiplier (shifted right), or the divisor magnitude
-    reg [width+2:0] booth_acc = 0 ;     // Booth: upper part of the product register. (width+1)-bit multiplicand + 2 bits for +-2M and the sign
-    reg booth_prev = 1'b0 ;             // Booth: the multiplier bit shifted out last (b(-1) = 0 at the start)
+    // Radix-2 Booth (Task 3). A and M use width+1 bits to handle the most negative operand.
+    reg [width:0] booth_A = 0, booth_M = 0 ;
+    reg [width-1:0] booth_Q = 0 ;
+    reg booth_Qminus1 = 1'b0 ;
     reg neg_quotient = 1'b0 ;           // division: negate the quotient at the end
     reg neg_remainder = 1'b0 ;          // division: negate the remainder at the end
 
@@ -109,18 +110,16 @@ module MCycle
     reg [2*width-1:0] n_temp_sum ;
     reg [2*width-1:0] n_shifted_op1 ;
     reg [2*width-1:0] n_shifted_op2 ;
-    reg [width+2:0] n_booth_acc ;
-    reg n_booth_prev ;
+    reg [width:0] n_booth_A, n_booth_M ;
+    reg [width-1:0] n_booth_Q ;
+    reg n_booth_Qminus1 ;
     reg n_neg_quotient ;
     reg n_neg_remainder ;
     reg [width-1:0] n_Result1 ;
     reg [width-1:0] n_Result2 ;
 
     // Combinational intermediates used inside COMPUTING_PROCESS
-    reg [2:0] booth_bits ;              // {b(2i+1), b(2i), b(2i-1)}
-    reg [width+2:0] booth_pp ;          // |digit| * multiplicand, width+3 bits
-    reg booth_neg ;                     // digit is negative: add ~pp + 1
-    reg [width+2:0] booth_sum ;
+    reg [2*width+1:0] booth_shift ;     // {A, Q, Q-1}, shifted right arithmetically
     reg [2*width:0] div_shifted ;       // {R, Q} shifted left by one, with the bit shifted out of R kept
     reg [width+1:0] div_diff ;          // trial subtraction R - D, sign in the MSB
     reg [width-1:0] dividend_mag ;
@@ -158,8 +157,10 @@ module MCycle
         n_temp_sum = temp_sum ;
         n_shifted_op1 = shifted_op1 ;
         n_shifted_op2 = shifted_op2 ;
-        n_booth_acc = booth_acc ;
-        n_booth_prev = booth_prev ;
+        n_booth_A = booth_A ;
+        n_booth_M = booth_M ;
+        n_booth_Q = booth_Q ;
+        n_booth_Qminus1 = booth_Qminus1 ;
         n_neg_quotient = neg_quotient ;
         n_neg_remainder = neg_remainder ;
         n_Result1 = Result1 ;
@@ -167,10 +168,7 @@ module MCycle
         n_done = 1'b0 ;
 
         // defaults for the intermediates, so that none of them is inferred as a latch
-        booth_bits = 3'b000 ;
-        booth_pp = 0 ;
-        booth_neg = 1'b0 ;
-        booth_sum = 0 ;
+        booth_shift = 0 ;
         div_shifted = 0 ;
         div_diff = 0 ;
 
@@ -186,14 +184,12 @@ module MCycle
             n_temp_sum = 0 ;
             n_shifted_op1 = { {width{~MCycleOp[0] & Operand1[width-1]}}, Operand1 } ; // sign extend the operands
             n_shifted_op2 = { {width{~MCycleOp[0] & Operand2[width-1]}}, Operand2 } ;
-            n_booth_acc = 0 ;
-            n_booth_prev = 1'b0 ;
+            n_booth_A = 0 ;                               // Booth: A = 0
+            n_booth_M = { Operand1[width-1], Operand1 } ; //        M = multiplicand, sign extended to width+1 bits
+            n_booth_Q = Operand2 ;                        //        Q = multiplier
+            n_booth_Qminus1 = 1'b0 ;                      //        Q-1 = 0
             n_neg_quotient = 1'b0 ;
             n_neg_remainder = 1'b0 ;
-            if( ~MCycleOp[1] & (RADIX4_BOOTH != 0) ) begin // Booth multiply: operands as (width+1)-bit signed numbers
-                n_shifted_op1 = { {(width-1){1'b0}}, ~MCycleOp[0] & Operand1[width-1], Operand1 } ;                // multiplicand M, width+1 bits
-                n_shifted_op2 = { {(width-2){1'b0}}, {2{~MCycleOp[0] & Operand2[width-1]}}, Operand2 } ;           // multiplier, width+2 bits
-            end
             if( MCycleOp[1] ) begin // division: R:Q = 0:|dividend|, D = |divisor|
                 n_temp_sum = { {width{1'b0}}, dividend_mag } ;
                 n_shifted_op2 = { {width{1'b0}}, divisor_mag } ;
@@ -204,39 +200,30 @@ module MCycle
 
         // Guarded so that the cycle in which Busy falls - the one the processor uses to write the result back - does not run another iteration over it, and so that the results are held while idle.
         if( n_state == COMPUTING ) begin
-            if( ~MCycleOp[1] & (RADIX4_BOOTH != 0) ) begin // Multiply (signed and unsigned), radix-4 Booth (Task 3)
-                // Product register = {booth_acc, multiplier}. The multiplier occupies shifted_op2[width+1:0] and is
-                // shifted out two bits per cycle, while the product bits are shifted in from booth_acc.
-                // The multiplicand M is shifted_op1[width:0].
-                booth_bits = { n_shifted_op2[1:0], n_booth_prev } ;
-
-                // Recode the 3 bits into a digit in {-2,-1,0,+1,+2}:
-                //   000, 111 : 0      001, 010 : +M     011 : +2M     100 : -2M     101, 110 : -M
-                case( booth_bits )
-                    3'b001, 3'b010, 3'b101, 3'b110: booth_pp = { {2{n_shifted_op1[width]}}, n_shifted_op1[width:0] } ; // M
-                    3'b011, 3'b100:                 booth_pp = { n_shifted_op1[width], n_shifted_op1[width:0], 1'b0 } ; // 2M
-                    default:                        booth_pp = 0 ;                                                       // 0
+            if( (MCycleOp == 2'b00) & (BOOTH != 0) ) begin // Signed multiply, radix-2 Booth (Task 3). Takes 'width' cycles.
+                // Each cycle: select add / subtract / nothing from {Q[0], Q-1}, then arithmetic shift right.
+                case( {n_booth_Q[0], n_booth_Qminus1} )
+                    2'b01:   n_booth_A = n_booth_A + n_booth_M ;   // end of a run of 1s: add M
+                    2'b10:   n_booth_A = n_booth_A - n_booth_M ;   // start of a run of 1s: subtract M
+                    default: ;                                     // 00 / 11: inside a run, A unchanged
                 endcase
-                booth_neg = booth_bits[2] & ~(booth_bits[1] & booth_bits[0]) ; // 100, 101, 110 subtract
+                booth_shift = { n_booth_A, n_booth_Q, n_booth_Qminus1 } ;
+                // Explicit sign replication avoids Verilog signed-cast ambiguity.
+                booth_shift = { booth_shift[2*width+1], booth_shift[2*width+1:1] } ;
+                n_booth_A = booth_shift[2*width+1:width+1] ;
+                n_booth_Q = booth_shift[width:1] ;
+                n_booth_Qminus1 = booth_shift[0] ;
 
-                // The only adder for multiplication: width+3 bits, subtraction as ~pp + 1 through the carry in
-                booth_sum = n_booth_acc + (booth_pp ^ {(width+3){booth_neg}}) + { {(width+2){1'b0}}, booth_neg } ;
-
-                // Arithmetic shift right by 2 of {booth_sum, multiplier}
-                n_booth_prev = n_shifted_op2[1] ;
-                n_shifted_op2 = { {(width-2){1'b0}}, booth_sum[1:0], n_shifted_op2[width+1:2] } ;
-                n_booth_acc = { {2{booth_sum[width+2]}}, booth_sum[width+2:2] } ;
-
-                if( n_count == COUNT_LAST_R4[7:0] ) // last cycle?
+                if( n_count == COUNT_LAST_W[7:0] ) // last cycle?
                     n_done = 1'b1 ;
 
                 n_count = n_count + 1 ;
 
-                // Product = {booth_acc, multiplier register}; its low 2*width bits are the result
-                n_Result1 = n_shifted_op2[width-1:0] ;
-                n_Result2 = { n_booth_acc[width-3:0], n_shifted_op2[width+1:width] } ;
+                // Product = {A, Q}; discard the redundant extension bit of A and the history bit Q-1.
+                n_Result2 = n_booth_A[width-1:0] ;
+                n_Result1 = n_booth_Q ;
             end
-            else if( ~MCycleOp[1] ) begin // Multiply, original shift-and-add (only used when RADIX4_BOOTH = 0)
+            else if( ~MCycleOp[1] ) begin // Multiply, original shift-and-add: unsigned, and signed when BOOTH = 0
                 // if( ~MCycleOp[0] ), takes 2*'width' cycles to execute, returns signed(Operand1)*signed(Operand2)
                 // if( MCycleOp[0] ), takes 'width' cycles to execute, returns unsigned(Operand1)*unsigned(Operand2)
                 if( n_shifted_op2[0] ) // add only if b0 = 1
@@ -286,8 +273,10 @@ module MCycle
         temp_sum <= n_temp_sum ;
         shifted_op1 <= n_shifted_op1 ;
         shifted_op2 <= n_shifted_op2 ;
-        booth_acc <= n_booth_acc ;
-        booth_prev <= n_booth_prev ;
+        booth_A <= n_booth_A ;
+        booth_M <= n_booth_M ;
+        booth_Q <= n_booth_Q ;
+        booth_Qminus1 <= n_booth_Qminus1 ;
         neg_quotient <= n_neg_quotient ;
         neg_remainder <= n_neg_remainder ;
         Result1 <= n_Result1 ;
