@@ -40,11 +40,11 @@
 --	from the prompt "complete tasks 1, 2 and 3 for assignment 3" and the template files.
 --
 --	One mcycle_tester runs one MCycle instance. test_MCycle runs several in parallel:
---	  width 4  : every operand pair (exhaustive), all four operations          - radix-4 Booth
---	  width 6  : every operand pair (exhaustive), all four operations          - radix-4 Booth
+--	  width 4  : every operand pair (exhaustive), all four operations          - radix-2 Booth
+--	  width 6  : every operand pair (exhaustive), all four operations          - radix-2 Booth
 --	  width 32 : corner cases (0, +-1, +-2, min, max, patterns) x each other
---	             + 3000 random pairs per operation                             - radix-4 Booth
---	  width 4 and 32 again with RADIX4_BOOTH = 0 (original shift-and-add multiplier), for comparison
+--	             + 3000 random pairs per operation                             - radix-2 Booth
+--	  width 4 and 32 again with BOOTH = 0 (original signed shift-and-add multiplier), for comparison
 --
 --	Every operation is checked for
 --	  - Result1 / Result2 against a reference computed here (RISC-V rules for division,
@@ -83,11 +83,11 @@ module test_MCycle(
         $display("") ;
         $display("==================================================================================") ;
         $display(" MCycle                     checks   errors   cycles: smul  umul  sdiv  udiv") ;
-        report("width  4, radix-4 Booth  ", t4.checks,   t4.errors,   t4.lat_seen[0],   t4.lat_seen[1],   t4.lat_seen[2],   t4.lat_seen[3]) ;
-        report("width  6, radix-4 Booth  ", t6.checks,   t6.errors,   t6.lat_seen[0],   t6.lat_seen[1],   t6.lat_seen[2],   t6.lat_seen[3]) ;
-        report("width 32, radix-4 Booth  ", t32.checks,  t32.errors,  t32.lat_seen[0],  t32.lat_seen[1],  t32.lat_seen[2],  t32.lat_seen[3]) ;
-        report("width  4, original mul   ", t4o.checks,  t4o.errors,  t4o.lat_seen[0],  t4o.lat_seen[1],  t4o.lat_seen[2],  t4o.lat_seen[3]) ;
-        report("width 32, original mul   ", t32o.checks, t32o.errors, t32o.lat_seen[0], t32o.lat_seen[1], t32o.lat_seen[2], t32o.lat_seen[3]) ;
+        report("width  4, radix-2 Booth  ", t4.checks,   t4.errors,   t4.lat_seen[0],   t4.lat_seen[1],   t4.lat_seen[2],   t4.lat_seen[3]) ;
+        report("width  6, radix-2 Booth  ", t6.checks,   t6.errors,   t6.lat_seen[0],   t6.lat_seen[1],   t6.lat_seen[2],   t6.lat_seen[3]) ;
+        report("width 32, radix-2 Booth  ", t32.checks,  t32.errors,  t32.lat_seen[0],  t32.lat_seen[1],  t32.lat_seen[2],  t32.lat_seen[3]) ;
+        report("width  4, original smul  ", t4o.checks,  t4o.errors,  t4o.lat_seen[0],  t4o.lat_seen[1],  t4o.lat_seen[2],  t4o.lat_seen[3]) ;
+        report("width 32, original smul  ", t32o.checks, t32o.errors, t32o.lat_seen[0], t32o.lat_seen[1], t32o.lat_seen[2], t32o.lat_seen[3]) ;
         $display("==================================================================================") ;
         if( t4.errors + t6.errors + t32.errors + t4o.errors + t32o.errors == 0 )
             $display(" PASSED - all %0d checks", t4.checks + t6.checks + t32.checks + t4o.checks + t32o.checks) ;
@@ -106,13 +106,13 @@ endmodule
 
 
 // Post-synthesis simulation of MCycle (Task 3), for comparing the two multipliers on the synthesized netlist.
-// 1. Settings > Synthesis > More Options: -generic width=32 -generic RADIX4_BOOTH=1   (or 0 for the original)
+// 1. Settings > Synthesis > More Options: -generic width=32 -generic BOOTH=1   (or 0 for the original)
 //    (or Settings > General > Generics/Parameters), and set MCycle as the top module. Run Synthesis.
 // 2. Set BOOTH below to the same value, set test_MCycle_postsynth as the simulation top, then
 //    Run Simulation > Run Post-Synthesis Functional (or Timing) Simulation, "run all".
 // It checks the results and the cycle count of every operation, and prints the cycles taken.
 module test_MCycle_postsynth ;
-    localparam BOOTH = 1 ;  // must match RADIX4_BOOTH used for synthesis
+    localparam BOOTH = 1 ;  // must match BOOTH used for synthesis
     wire done ;
     mcycle_tester #(.W(32), .BOOTH(BOOTH), .EXHAUSTIVE(0), .NRANDOM(500), .SEED(77), .NETLIST(1)) t (.finished(done)) ;
     initial begin
@@ -120,7 +120,7 @@ module test_MCycle_postsynth ;
         #1 ;
         $display("") ;
         $display("==================================================================================") ;
-        $display(" MCycle netlist (width 32, RADIX4_BOOTH = %0d): %0d checks, %0d errors", BOOTH, t.checks, t.errors) ;
+        $display(" MCycle netlist (width 32, BOOTH = %0d): %0d checks, %0d errors", BOOTH, t.checks, t.errors) ;
         $display(" cycles: signed mul %0d, unsigned mul %0d, signed div %0d, unsigned div %0d",
                  t.lat_seen[0], t.lat_seen[1], t.lat_seen[2], t.lat_seen[3]) ;
         $display(" %0s", (t.errors == 0) ? "PASSED" : "FAILED") ;
@@ -133,7 +133,7 @@ endmodule
 // Drives one MCycle instance through all of the tests described above.
 module mcycle_tester #(
         parameter W = 4,            // MCycle width
-        parameter BOOTH = 1,        // MCycle RADIX4_BOOTH
+        parameter BOOTH = 1,        // MCycle BOOTH
         parameter EXHAUSTIVE = 1,   // 1: every operand pair (only sensible for W <= 8)
         parameter NRANDOM = 0,      // random operand pairs per operation (in addition)
         parameter SEED = 1,
@@ -163,7 +163,7 @@ module mcycle_tester #(
             MCycle dut( CLK, RESET, Start, MCycleOp, Operand1, Operand2, Result1, Result2, Busy ) ;
         end
         else begin : g_rtl
-            MCycle #(.width(W), .RADIX4_BOOTH(BOOTH)) dut(
+            MCycle #(.width(W), .BOOTH(BOOTH)) dut(
                 CLK,
                 RESET,
                 Start,
@@ -199,8 +199,8 @@ module mcycle_tester #(
     function integer expected_latency(input [1:0] op) ;
         begin
             case(op)
-                2'b00:   expected_latency = BOOTH ? W/2 + 2 : 2*W + 1 ;  // radix-4 Booth: W/2+1 iterations
-                2'b01:   expected_latency = BOOTH ? W/2 + 2 : W + 1 ;
+                2'b00:   expected_latency = BOOTH ? W + 1 : 2*W + 1 ;    // radix-2 Booth: W iterations, original: 2W
+                2'b01:   expected_latency = W + 1 ;                      // unsigned shift-and-add: W iterations
                 default: expected_latency = W + 1 ;                    // division: one quotient bit per cycle
             endcase
         end

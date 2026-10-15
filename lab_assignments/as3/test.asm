@@ -26,7 +26,7 @@
 #        LED7 all of the above
 #      A correct CPU shows LED[7:0] = 0xFF. (In RARS the same value is written to 'status'.)
 #   2. Measures the cycles taken by one mul and one div with the cycle counter (MMIO 0xFFFF00A0).
-#      Expected on the hardware: mul 18 cycles (radix-4 Booth, Task 3), div 33 cycles.
+#      Expected on the hardware: mul 33 cycles (radix-2 Booth, Task 3; 65 with the original), div 33 cycles.
 #      (RARS has no cycle counter, so both read as 0 there.)
 #   3. Forever: shows a value on the 7-segment display, chosen with the switches.
 #

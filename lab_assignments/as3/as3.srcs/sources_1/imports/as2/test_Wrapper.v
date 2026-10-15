@@ -28,7 +28,7 @@
 //   1. The program's self-check must turn on all 8 LEDs (LED_OUT = 0xFF): every RV32M instruction gave the
 //      expected result on all 16 test cases, including back-to-back and rd = rs1 / rs2.
 //   2. SW15 = 0: for every test case (SW3-0) every view (SW7-4) is checked on the 7-segment display:
-//      a, b, mul, mulh, mulhu, div, divu, rem, remu, the measured cycles of mul (18) and div (33), LED value.
+//      a, b, mul, mulh, mulhu, div, divu, rem, remu, the measured cycles of mul (33) and div (33), LED value.
 //   3. SW15 = 1: own operands from SW14-8 / SW6-0, with BTNL / BTNC / BTNR choosing div / rem / divu.
 //
 // One pass of the display loop takes at most about 280 cycles, so each check waits 700 cycles after
@@ -139,7 +139,7 @@ module test_Wrapper #(
 	check(16'h0060, 32'h00000002, "case 0: divu");
 	check(16'h0070, 32'h00000001, "case 0: rem");
 	check(16'h0080, 32'h00000001, "case 0: remu");
-	check(16'h0090, 32'h00000012, "case 0: mul cycles");
+	check(16'h0090, 32'h00000021, "case 0: mul cycles");
 	check(16'h00A0, 32'h00000021, "case 0: div cycles");
 	check(16'h00B0, 32'h000000FF, "case 0: LED value");
 
@@ -153,7 +153,7 @@ module test_Wrapper #(
 	check(16'h0061, 32'h55555553, "case 1: divu");
 	check(16'h0071, 32'hFFFFFFFF, "case 1: rem");
 	check(16'h0081, 32'h00000000, "case 1: remu");
-	check(16'h0091, 32'h00000012, "case 1: mul cycles");
+	check(16'h0091, 32'h00000021, "case 1: mul cycles");
 	check(16'h00A1, 32'h00000021, "case 1: div cycles");
 	check(16'h00B1, 32'h000000FF, "case 1: LED value");
 
@@ -167,7 +167,7 @@ module test_Wrapper #(
 	check(16'h0062, 32'h00000000, "case 2: divu");
 	check(16'h0072, 32'h00000001, "case 2: rem");
 	check(16'h0082, 32'h00000007, "case 2: remu");
-	check(16'h0092, 32'h00000012, "case 2: mul cycles");
+	check(16'h0092, 32'h00000021, "case 2: mul cycles");
 	check(16'h00A2, 32'h00000021, "case 2: div cycles");
 	check(16'h00B2, 32'h000000FF, "case 2: LED value");
 
@@ -181,7 +181,7 @@ module test_Wrapper #(
 	check(16'h0063, 32'h00000000, "case 3: divu");
 	check(16'h0073, 32'hFFFFFFFF, "case 3: rem");
 	check(16'h0083, 32'hFFFFFFF9, "case 3: remu");
-	check(16'h0093, 32'h00000012, "case 3: mul cycles");
+	check(16'h0093, 32'h00000021, "case 3: mul cycles");
 	check(16'h00A3, 32'h00000021, "case 3: div cycles");
 	check(16'h00B3, 32'h000000FF, "case 3: LED value");
 
@@ -195,7 +195,7 @@ module test_Wrapper #(
 	check(16'h0064, 32'h00000000, "case 4: divu");
 	check(16'h0074, 32'h00000000, "case 4: rem");
 	check(16'h0084, 32'h80000000, "case 4: remu");
-	check(16'h0094, 32'h00000012, "case 4: mul cycles");
+	check(16'h0094, 32'h00000021, "case 4: mul cycles");
 	check(16'h00A4, 32'h00000021, "case 4: div cycles");
 	check(16'h00B4, 32'h000000FF, "case 4: LED value");
 
@@ -209,7 +209,7 @@ module test_Wrapper #(
 	check(16'h0065, 32'h80000000, "case 5: divu");
 	check(16'h0075, 32'h00000000, "case 5: rem");
 	check(16'h0085, 32'h00000000, "case 5: remu");
-	check(16'h0095, 32'h00000012, "case 5: mul cycles");
+	check(16'h0095, 32'h00000021, "case 5: mul cycles");
 	check(16'h00A5, 32'h00000021, "case 5: div cycles");
 	check(16'h00B5, 32'h000000FF, "case 5: LED value");
 
@@ -223,7 +223,7 @@ module test_Wrapper #(
 	check(16'h0066, 32'h00000001, "case 6: divu");
 	check(16'h0076, 32'h00000000, "case 6: rem");
 	check(16'h0086, 32'h00000000, "case 6: remu");
-	check(16'h0096, 32'h00000012, "case 6: mul cycles");
+	check(16'h0096, 32'h00000021, "case 6: mul cycles");
 	check(16'h00A6, 32'h00000021, "case 6: div cycles");
 	check(16'h00B6, 32'h000000FF, "case 6: LED value");
 
@@ -237,7 +237,7 @@ module test_Wrapper #(
 	check(16'h0067, 32'h00000001, "case 7: divu");
 	check(16'h0077, 32'h00000000, "case 7: rem");
 	check(16'h0087, 32'h00000000, "case 7: remu");
-	check(16'h0097, 32'h00000012, "case 7: mul cycles");
+	check(16'h0097, 32'h00000021, "case 7: mul cycles");
 	check(16'h00A7, 32'h00000021, "case 7: div cycles");
 	check(16'h00B7, 32'h000000FF, "case 7: LED value");
 
@@ -251,7 +251,7 @@ module test_Wrapper #(
 	check(16'h0068, 32'h00000000, "case 8: divu");
 	check(16'h0078, 32'h00000000, "case 8: rem");
 	check(16'h0088, 32'h00000000, "case 8: remu");
-	check(16'h0098, 32'h00000012, "case 8: mul cycles");
+	check(16'h0098, 32'h00000021, "case 8: mul cycles");
 	check(16'h00A8, 32'h00000021, "case 8: div cycles");
 	check(16'h00B8, 32'h000000FF, "case 8: LED value");
 
@@ -265,7 +265,7 @@ module test_Wrapper #(
 	check(16'h0069, 32'hFFFFFFFF, "case 9: divu");
 	check(16'h0079, 32'h00000005, "case 9: rem");
 	check(16'h0089, 32'h00000005, "case 9: remu");
-	check(16'h0099, 32'h00000012, "case 9: mul cycles");
+	check(16'h0099, 32'h00000021, "case 9: mul cycles");
 	check(16'h00A9, 32'h00000021, "case 9: div cycles");
 	check(16'h00B9, 32'h000000FF, "case 9: LED value");
 
@@ -279,7 +279,7 @@ module test_Wrapper #(
 	check(16'h006A, 32'h0001E240, "case A: divu");
 	check(16'h007A, 32'h00000315, "case A: rem");
 	check(16'h008A, 32'h00000315, "case A: remu");
-	check(16'h009A, 32'h00000012, "case A: mul cycles");
+	check(16'h009A, 32'h00000021, "case A: mul cycles");
 	check(16'h00AA, 32'h00000021, "case A: div cycles");
 	check(16'h00BA, 32'h000000FF, "case A: LED value");
 
@@ -293,7 +293,7 @@ module test_Wrapper #(
 	check(16'h006B, 32'h003FA6F6, "case B: divu");
 	check(16'h007B, 32'hFFFFFCEB, "case B: rem");
 	check(16'h008B, 32'h000001FB, "case B: remu");
-	check(16'h009B, 32'h00000012, "case B: mul cycles");
+	check(16'h009B, 32'h00000021, "case B: mul cycles");
 	check(16'h00AB, 32'h00000021, "case B: div cycles");
 	check(16'h00BB, 32'h000000FF, "case B: LED value");
 
@@ -307,7 +307,7 @@ module test_Wrapper #(
 	check(16'h006C, 32'h00000000, "case C: divu");
 	check(16'h007C, 32'h12345678, "case C: rem");
 	check(16'h008C, 32'h12345678, "case C: remu");
-	check(16'h009C, 32'h00000012, "case C: mul cycles");
+	check(16'h009C, 32'h00000021, "case C: mul cycles");
 	check(16'h00AC, 32'h00000021, "case C: div cycles");
 	check(16'h00BC, 32'h000000FF, "case C: LED value");
 
@@ -321,7 +321,7 @@ module test_Wrapper #(
 	check(16'h006D, 32'h7FFFFFFF, "case D: divu");
 	check(16'h007D, 32'h00000000, "case D: rem");
 	check(16'h008D, 32'h00000000, "case D: remu");
-	check(16'h009D, 32'h00000012, "case D: mul cycles");
+	check(16'h009D, 32'h00000021, "case D: mul cycles");
 	check(16'h00AD, 32'h00000021, "case D: div cycles");
 	check(16'h00BD, 32'h000000FF, "case D: LED value");
 
@@ -335,7 +335,7 @@ module test_Wrapper #(
 	check(16'h006E, 32'h00000000, "case E: divu");
 	check(16'h007E, 32'h00000001, "case E: rem");
 	check(16'h008E, 32'h00000001, "case E: remu");
-	check(16'h009E, 32'h00000012, "case E: mul cycles");
+	check(16'h009E, 32'h00000021, "case E: mul cycles");
 	check(16'h00AE, 32'h00000021, "case E: div cycles");
 	check(16'h00BE, 32'h000000FF, "case E: LED value");
 
@@ -349,7 +349,7 @@ module test_Wrapper #(
 	check(16'h006F, 32'h0000DEAC, "case F: divu");
 	check(16'h007F, 32'hFFFFE041, "case F: rem");
 	check(16'h008F, 32'h0000E043, "case F: remu");
-	check(16'h009F, 32'h00000012, "case F: mul cycles");
+	check(16'h009F, 32'h00000021, "case F: mul cycles");
 	check(16'h00AF, 32'h00000021, "case F: div cycles");
 	check(16'h00BF, 32'h000000FF, "case F: LED value");
 

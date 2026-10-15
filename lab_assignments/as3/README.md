@@ -8,9 +8,9 @@ This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 
 | Task | What was done | Verified | Still to do |
 |---|---|---|---|
 | 1 Division | Signed + unsigned restoring division in MCycle | `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass. Vivado: MCycle synthesised as top with **no warnings from MCycle.v** (see *Vivado notes*) | — |
-| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass. **Working on the board** (LED = 0xFF, mul 18 / div 33 cycles) | — |
-| 3 Enhancement | Radix-4 Booth multiplier for signed **and** unsigned multiplication | Gate-level (Yosys netlist) sim of both versions passes; cycles and resources below | Vivado post-synthesis simulation + utilisation report, 1–4 slides |
-| 4 Visualisation | — | — | Not started |
+| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass. Worked on the board with the earlier multiplier (LED = 0xFF) | **Rebuild the bitstream** with the radix-2 Booth MCycle (mul now 33 cycles) and re-check on the board |
+| 3 Enhancement | Radix-2 Booth for signed multiplication (Hin Lok) | `test_MCycle` (all 76 083 checks, incl. exhaustive 4/6-bit); gate-level (Yosys netlist) sim of both versions; cycles and resources below | Vivado post-synthesis simulation + utilisation report, 1–4 slides |
+| 4 Visualisation | `booth_visualisation.html` (Hin Lok), plus a datapath diagram, cycle counts and hex input | Model checked against the RTL: A/Q/Q₋₁ after every edge identical to the Verilog simulation | Hin Lok's prompts in `prompt_history.md` |
 
 ## Where things live
 
@@ -22,9 +22,11 @@ This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 
 | CPU testbench, self-checking | `test_Wrapper.v` in the same folder |
 | Demo program | `test.asm` (this folder) → `AA_IROM.mem` / `AA_DMEM.mem` in `sources_1` and `sim_1` |
 | RV32I regression self-test | `cpu_check.py` (this folder): `python cpu_check.py --root .` |
-| Task 4 visualisation | `visualisation.html` (to be made) |
+| Task 4 visualisation | `booth_visualisation.html` (open in any browser) |
 | Task 4 prompt history | `prompt_history.md` |
 | Task 3 slides | this folder (1–4 slides, .pptx or .pdf) |
+| Study notes (all tasks, worked examples) | `docs/CG3207_Asst3_Study_Notes.pdf` |
+| Division walkthrough, signal by signal (Qi Ye) | `docs/CG3207_Task1_Division_Dataflow.html` |
 
 ## Task 1 — Division
 
@@ -70,8 +72,8 @@ but this still matches RISC-V and RARS.
   and `mul` with rd = rs2. Every result is compared against an expected table.
   - **LED[6:0]** = one flag per instruction (mul, mulh, mulhu, div, divu, rem, remu), **LED7** = all of
     them. A correct CPU shows **LED = 0xFF**.
-- It measures the cycles taken by one `mul` and one `div` with the cycle counter. Expected: **mul 18,
-  div 33**.
+- It measures the cycles taken by one `mul` and one `div` with the cycle counter. Expected: **mul 33,
+  div 33** (mul would be 65 with the original signed multiplier).
 - **SW15 = 0:** SW3–0 picks a test case and SW7–4 picks what to show on the 7-segment display:
   0 a, 1 b, 2 mul, 3 mulh, 4 mulhu, 5 div, 6 divu, 7 rem, 8 remu, 9 mul cycles, A div cycles,
   B LED value. Values are recomputed live with the M instructions, not read from the table.
@@ -98,63 +100,64 @@ The expected table was computed with the RISC-V rules. Running the program in RA
 To reassemble: in RARS, *File → Dump Memory*, `.text` and `.data` as *Hexadecimal Text*, into
 `AA_IROM.mem` / `AA_DMEM.mem` in both `sources_1/imports/as2` and `sim_1/imports/as2`.
 
-## Task 3 — Enhancement: radix-4 Booth multiplication
+## Task 3 — Enhancement: radix-2 Booth multiplication
 
-The original multiplier adds one partial product per cycle: 2·width cycles for signed (operands
-sign-extended to 64 bits) and width cycles for unsigned, using a 2·width-bit adder and two 2·width-bit
-shift registers.
+The original multiplier can only add positive shifted copies of the multiplicand, so for signed
+numbers it sign-extends both operands to 2·width bits and runs 2·width iterations with a 2·width-bit
+adder (65 cycles for a 32-bit signed `mul`).
 
-Radix-4 (modified) Booth recoding looks at 3 multiplier bits per cycle: 2 new bits plus the last bit
-of the previous pair. It turns them into one digit in {−2, −1, 0, +1, +2}:
+Radix-2 Booth (Hin Lok's design) reads the multiplier as a signed number directly. Registers:
+A (width+1 bits, starts at 0), M (the multiplicand, sign-extended to width+1 bits), Q (the
+multiplier) and Q₋₁ (starts at 0). Each cycle:
 
-| bits | digit |
+| {Q₀, Q₋₁} | Action |
 |---|---|
-| 000, 111 | 0 |
-| 001, 010 | +M |
-| 011 | +2M |
-| 100 | −2M |
-| 101, 110 | −M |
+| 00, 11 | A unchanged (inside a run of 0s / 1s) |
+| 01 | A = A + M (a run of 1s just ended) |
+| 10 | A = A − M (a run of 1s starts) |
 
-Each cycle adds digit × M to the upper part of the product register (subtraction is done as ~pp + 1
-through the carry-in), then shifts the whole register right by 2 (arithmetic). Both operands are first
-extended by one bit (sign bit for signed, 0 for unsigned), so **one datapath does both signed and
-unsigned** multiplication in width/2 + 1 iterations.
+then `{A, Q, Q₋₁}` is shifted right by one bit, copying A's sign bit. After width cycles the product
+is `{A[width-1:0], Q}`. A and M have one extra bit so that −M fits even for M = −2³¹.
 
-| width 32 | Original | Radix-4 Booth |
+| width 32 | Original | Radix-2 Booth |
 |---|---|---|
-| signed mul cycles (incl. write-back) | 65 | **18** (3.6× faster) |
-| unsigned mul cycles | 33 | **18** (1.8× faster) |
-| multiply adder | 64-bit | **35-bit** |
-| whole MCycle, LUTs (Yosys estimate*) | 905 | **658** |
-| whole MCycle, flip-flops (Yosys estimate*) | 268 | **243** |
+| signed mul cycles (incl. write-back) | 65 | **33** (≈2× faster) |
+| unsigned mul cycles | 33 | 33 (unchanged) |
+| adder for signed multiply | 64-bit | **33-bit** add/subtract |
+| whole MCycle, LUTs (Yosys estimate*) | 905 | 1016 |
+| whole MCycle, flip-flops (Yosys estimate*) | 268 | 367 |
+
+So it is a speed-for-area trade-off: Booth's registers and adder are added alongside the template's,
+which unsigned multiplication still uses.
 
 \*Yosys `synth_xilinx`, no DSPs. Replace these with Vivado's post-synthesis utilisation report for
 the slides.
 
-`RADIX4_BOOTH = 0` gives back the original multiplier, so both versions can be compared from the same
-file. `test_MCycle` runs both versions.
+`BOOTH = 0` gives back the original signed multiplier, so both versions can be compared from the same
+file. `test_MCycle` runs both versions. (An earlier radix-4 Booth version — 18 cycles, smaller — is in
+the git history at commit `6c27ed1`.)
 
 ### Post-synthesis simulation in Vivado (for the slides)
 
 1. Set `MCycle` as top under Design Sources.
-2. Go to *Settings → Synthesis → More Options* and add `-generic width=32 -generic RADIX4_BOOTH=1`.
+2. Go to *Settings → Synthesis → More Options* and add `-generic width=32 -generic BOOTH=1`.
 3. Run Synthesis. Note the LUT and FF counts from *Report Utilization*.
 4. Set `test_MCycle_postsynth` as the simulation top (`localparam BOOTH = 1`). Run *Post-Synthesis
    Functional Simulation* and use `run all`. It prints the checks passed and the cycles for each
    operation.
-5. Repeat with `RADIX4_BOOTH=0` and `localparam BOOTH = 0` for the original multiplier.
+5. Repeat with `BOOTH=0` and `localparam BOOTH = 0` for the original multiplier.
 6. Afterwards, remove the `-generic` options and set `TOP` / `test_Wrapper` back as tops.
 
 ## On the board
 
 Program the board with the bitstream built with `TOP` as top. The CPU clock is 100 MHz / 2^5 =
-3.125 MHz (`CLK_DIV_BITS = 5` in TOP), so the start-up self-check (about 4 240 cycles) looks instant.
+3.125 MHz (`CLK_DIV_BITS = 5` in TOP), so the start-up self-check (about 5 200 cycles) looks instant.
 
 | What | How | Expected |
 |---|---|---|
 | Self-check | after programming, or press BTND (reset) | **LED7–0 all on (0xFF)**. LED0 mul, LED1 mulh, LED2 mulhu, LED3 div, LED4 divu, LED5 rem, LED6 remu, LED7 all; an LED that stays off shows which instruction failed |
 | PC / clock | — | LED15–9 show the PC (too fast to read), LED8 the CPU clock |
-| mul cycles | SW15 = 0, SW7–4 = 9 | `00000012` (18) |
+| mul cycles | SW15 = 0, SW7–4 = 9 | `00000021` (33; 65 with the original) |
 | div cycles | SW15 = 0, SW7–4 = A | `00000021` (33) |
 | −7 × 3 | SW3–0 = 1, SW7–4 = 2 | `FFFFFFEB` (−21) |
 | −2^31 ÷ −1 | SW3–0 = 4, SW7–4 = 5 | `80000000` |
@@ -166,8 +169,8 @@ Examples in own-operand mode: a = −5, b = 3 → `FFFFFFF1` (−15); BTNL → `
 BTNR → `55555553`.
 
 Suggested demo: point at the 8 LEDs (hardware self-check); show case 4 view 5 (div overflow); show
-views 9 and A (18 vs 33 cycles, against 65 for the original signed multiplier); let the TA try their
-own numbers with SW15 up.
+view 9 (mul: 33 cycles, against 65 for the original signed multiplier); let the TA try their own
+numbers with SW15 up; then step through the same multiplication in `booth_visualisation.html`.
 
 ## Vivado notes
 
@@ -206,8 +209,10 @@ own numbers with SW15 up.
 - [x] Task 1 — signed + unsigned division in MCycle, self-checking testbench
 - [x] Task 1 — synthesise MCycle as top in Vivado, check the warnings
 - [x] Task 2 — RV32M in the CPU, demo program, CPU-level simulation
-- [x] Task 2 — bitstream and board demo
-- [x] Task 3 — radix-4 Booth multiplier, gate-level check
+- [x] Task 2 — bitstream and board demo (earlier multiplier)
+- [ ] Task 2 — rebuild the bitstream with the radix-2 Booth MCycle and re-check on the board
+- [x] Task 3 — radix-2 Booth multiplier, testbench + gate-level check
 - [ ] Task 3 — Vivado post-synthesis simulation + utilisation numbers, 1–4 slides
-- [ ] Task 4 — single-file HTML visualisation of the Booth multiplier + complete prompt history
+- [x] Task 4 — single-file HTML visualisation of the Booth multiplier, checked against the RTL
+- [ ] Task 4 — Hin Lok's prompts (and GUIDE.md) added to `prompt_history.md`
 - [ ] Submission zip `GroupXX_Monday/Friday_Asst3.zip`: modified .v files + testbenches, .bit, .asm, slides, .html, prompt history
