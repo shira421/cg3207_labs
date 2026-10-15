@@ -9,7 +9,7 @@ This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 
 |---|---|---|---|
 | 1 Division | Signed + unsigned restoring division in MCycle | `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass. Vivado: MCycle synthesised as top with **no warnings from MCycle.v** (see *Vivado notes*) | — |
 | 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass. Worked on the board with the earlier multiplier (LED = 0xFF) | **Rebuild the bitstream** with the radix-2 Booth MCycle (mul now 33 cycles) and re-check on the board |
-| 3 Enhancement | Radix-2 Booth for signed multiplication (Hin Lok) | `test_MCycle` (all 76 083 checks, incl. exhaustive 4/6-bit); gate-level (Yosys netlist) sim of both versions; cycles and resources below | Vivado post-synthesis simulation + utilisation report, 1–4 slides |
+| 3 Enhancement | Radix-2 Booth for signed multiplication (Hin Lok); slides done | `test_MCycle` (all 76 083 checks, incl. exhaustive 4/6-bit); gate-level sim of both versions; Vivado numbers on the slides | Slide numbers were measured with the division placeholder: re-run on the final MCycle.v or footnote it; include the testbench the slide's check counts come from |
 | 4 Visualisation | `booth_visualisation.html` (Hin Lok), plus a datapath diagram, cycle counts and hex input | Model checked against the RTL: A/Q/Q₋₁ after every edge identical to the Verilog simulation | Hin Lok's prompts in `prompt_history.md` |
 
 ## Where things live
@@ -24,8 +24,8 @@ This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 
 | RV32I regression self-test | `cpu_check.py` (this folder): `python cpu_check.py --root .` |
 | Task 4 visualisation | `booth_visualisation.html` (open in any browser) |
 | Task 4 prompt history | `prompt_history.md` |
-| Task 3 slides | this folder (1–4 slides, .pptx or .pdf) |
-| Study notes (all tasks, worked examples) | `docs/CG3207_Asst3_Study_Notes.pdf` |
+| Task 3 slides | `Task3_Booth_Slides.pdf` |
+| Study notes & demo guide (demo script, slides explained, all tasks, Booth radix-2 and radix-4, Q&A, cheat sheet) | `docs/CG3207_Asst3_Study_Notes.pdf` (source: `.md` next to it) |
 | Division walkthrough, signal by signal (Qi Ye) | `docs/CG3207_Task1_Division_Dataflow.html` |
 
 ## Task 1 — Division
@@ -130,8 +130,9 @@ is `{A[width-1:0], Q}`. A and M have one extra bit so that −M fits even for M 
 So it is a speed-for-area trade-off: Booth's registers and adder are added alongside the template's,
 which unsigned multiplication still uses.
 
-\*Yosys `synth_xilinx`, no DSPs. Replace these with Vivado's post-synthesis utilisation report for
-the slides.
+\*Yosys `synth_xilinx`, no DSPs. Vivado (slides, measured on MCycle with the division placeholder):
+487 → 650 LUTs (+33.5%), 266 → 365 flip-flops (+37.2%), 0 DSPs, 0 latches. The +99 flip-flops are
+exactly Booth's A (33) + M (33) + Q (32) + Q₋₁ (1).
 
 `BOOTH = 0` gives back the original signed multiplier, so both versions can be compared from the same
 file. `test_MCycle` runs both versions. (An earlier radix-4 Booth version — 18 cycles, smaller — is in
@@ -212,7 +213,8 @@ numbers with SW15 up; then step through the same multiplication in `booth_visual
 - [x] Task 2 — bitstream and board demo (earlier multiplier)
 - [ ] Task 2 — rebuild the bitstream with the radix-2 Booth MCycle and re-check on the board
 - [x] Task 3 — radix-2 Booth multiplier, testbench + gate-level check
-- [ ] Task 3 — Vivado post-synthesis simulation + utilisation numbers, 1–4 slides
+- [x] Task 3 — slides (`Task3_Booth_Slides.pdf`) with Vivado post-synthesis numbers
+- [ ] Task 3 — re-run the slide numbers on the final MCycle.v (or footnote them), and include the testbench behind the slide's check counts
 - [x] Task 4 — single-file HTML visualisation of the Booth multiplier, checked against the RTL
 - [ ] Task 4 — Hin Lok's prompts (and GUIDE.md) added to `prompt_history.md`
 - [ ] Submission zip `GroupXX_Monday/Friday_Asst3.zip`: modified .v files + testbenches, .bit, .asm, slides, .html, prompt history
