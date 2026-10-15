@@ -1,0 +1,287 @@
+`timescale 1ns / 1ps
+/*
+----------------------------------------------------------------------------------
+-- Company: NUS
+-- Engineer: (c) Rajesh Panicker
+--
+-- Create Date: 09/22/2020 06:49:10 PM
+-- Module Name: RV
+-- Project Name: CG3207 Project
+-- Target Devices: Nexys 4 / Basys 3
+-- Tool Versions: Vivado 2019.2
+-- Description: RISC-V Processor Module
+--
+-- Dependencies: NIL
+--
+-- Revision:
+-- Revision 0.01 - File Created
+-- Revision 0.02 - Assignment 2: single-cycle datapath for RV32I (except byte/half-word load/store)
+-- Revision 0.03 - Assignment 3: MCycle unit for RV32M (mul, mulh, mulhu, div, divu, rem, remu), stalling while Busy
+-- Additional Comments: The interface SHOULD NOT be modified (except making output reg) unless you modify Wrapper.v/vhd too.
+                        The implementation can be modified.
+--
+----------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------
+--	License terms :
+--	You are free to use this code as long as you
+--		(i) DO NOT post it on any public repository;
+--		(ii) use it only for educational purposes;
+--		(iii) accept the responsibility to ensure that your implementation does not violate anyone's intellectual property.
+--		(iv) accept that the program is provided "as is" without warranty of any kind or assurance regarding its suitability for any particular purpose;
+--		(v) send an email to rajesh<dot>panicker<at>ieee.org briefly mentioning its use (except when used for the course CG3207 at the National University of Singapore);
+--		(vi) retain this notice in this file as well as any files derived from this.
+----------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------
+--	Changes: instruction field extraction, Src_A / Src_B / Result multiplexers,
+--	         next-PC logic (the second and last 32-bit adder), wider ALUSrcA/ALUSrcB/PCSrc.
+--	Assignment 3: MCycle (width 32) on RD1 / RD2; WE_PC = ~Busy stalls the processor while it works;
+--	         register writes are held off until Busy falls; a multiplexer picks the ALU or MCycle result.
+----------------------------------------------------------------------------------
+*/
+
+// Change wire to reg if assigned inside a procedural (always) block. However, where it is easy enough, use assign instead of always.
+// A 2-1 multiplexing can be done easily using an assign with a ternary operator
+// For multiplexing with number of inputs > 2, a case construct within an always block is a natural fit. DO NOT to use nested ternary assignment operator as it hampers the readability of your code.
+
+
+module RV #(
+    parameter PC_INIT = 32'h00400000
+)(
+    input CLK,
+    input RESET,
+    //input Interrupt,      // for optional future use.
+    input [31:0] Instr,
+    input [31:0] ReadData_in,       // Name mangled to support lb/lbu/lh/lhu
+    output MemRead,
+    output [3:0] MemWrite_out,		// Column-wise write enable to support sb/sw. Each column is a byte.
+    output [31:0] PC,
+    output [31:0] ALUResult,
+    output [31:0] WriteData_out		// Name mangled to support sb/sw
+);
+
+    // Please read Lab 4 Enhancement: Implementing additional instructions on how to support lb/lbu/lh/lhu/sb/sh
+
+    //RV Signals
+    wire [2:0] SizeSel;     //to support lb/lbu/lh/lhu/sb/sh
+    wire [31:0] ReadData;
+    wire [31:0] WriteData;
+    wire MemWrite;
+
+    // The signals that are commented out (except CLK) will need to be uncommented and attached a stage suffix for pipelining,
+    //  except if the connection is within the same stage.
+
+    // RegFile signals
+    //wire CLK ;
+    wire WE ;
+    wire [4:0] rs1 ;
+    wire [4:0] rs2 ;
+    wire [4:0] rd ;
+    wire [31:0] WD ;
+    wire [31:0] R15 ;
+    wire [31:0] RD1 ;
+    wire [31:0] RD2 ;
+
+    // Extend Module signals
+    wire [2:0] ImmSrc ;
+    wire [24:0] InstrImm ;
+    wire [31:0] ExtImm ;
+
+    // Decoder signals
+    wire [6:0] Opcode ;
+    wire [2:0] Funct3 ;
+    wire [6:0] Funct7 ;
+    wire [1:0] PCS ;
+    wire RegWrite ;
+    //wire MemWrite ;
+    wire MemtoReg ;
+    wire [1:0] ALUSrcA ;	// 00 RD1, 01 zero, 10 PC
+    wire [1:0] ALUSrcB ;	// 00 RD2, 01 ExtImm, 10 constant 4
+    //wire [2:0] ImmSrc ;
+    wire [3:0] ALUControl ;
+    wire MStart ;		// RV32M instruction: start MCycle
+    wire [1:0] MCycleOp ;	// 00 signed mul, 01 unsigned mul, 10 signed div, 11 unsigned div
+    wire MCycleSel ;		// write the MCycle result instead of the ALU result
+    wire MResultSel ;		// 0: MCycle Result1 (low word / quotient), 1: Result2 (high word / remainder)
+
+    // PC_Logic signals
+    //wire [1:0] PCS
+    //wire [2:0] Funct3;
+    //wire [2:0] ALUFlags;
+    wire [1:0] PCSrc;		// [1]: base (PC / RD1), [0]: offset (4 / ExtImm)
+
+    // ALU signals
+    reg [31:0] Src_A ;		// reg because they are driven from always blocks (3-input muxes)
+    reg [31:0] Src_B ;
+    //wire [3:0] ALUControl ;
+    //wire [31:0] ALUResult ;
+    wire [2:0] ALUFlags ;
+
+    // ProgramCounter signals
+    //wire CLK ;
+    //wire RESET ;
+    wire WE_PC ;
+    wire [31:0] PC_IN ;
+    //wire [31:0] PC ;
+
+    // MCycle signals
+    wire [31:0] MCycleResult1 ;	// low word of product / quotient
+    wire [31:0] MCycleResult2 ;	// high word of product / remainder
+    wire Busy ;
+    wire [31:0] MCycleResult ;
+
+    // Other internal signals here
+    wire [31:0] PC_Base ;	// PC for PC + 4, branches and jal; RD1 (rs1) for jalr
+    wire [31:0] PC_Offset ;	// 4, or the immediate for a taken branch / jal / jalr
+    wire [31:0] PC_Sum ;	// PC_Base + PC_Offset
+    wire [31:0] Result ;
+    wire [31:0] ExecResult ;	// ALU or MCycle result
+
+    assign MemRead = MemtoReg; // This is needed for the proper functionality of some devices such as UART CONSOLE
+    assign WE_PC = ~Busy ;  // Stall (hold the PC, and hence the instruction) while MCycle is working.
+
+    assign ReadData = ReadData_in;       // Change datapath as appropriate if supporting lb/lbu/lh/lhu
+    assign WriteData_out = WriteData;    // Change datapath as appropriate if supporting sb/sh
+    assign MemWrite_out = {4{MemWrite}}; // Change datapath as appropriate if supporting sb/sh
+    assign SizeSel = 3'b010;             // Change this to be generated by the Decoder (control) as appropriate if
+                                         // supporting lb/sb/lbu/lh/sh/lhu/lw/sw. Hint: funct3
+
+    //------------------------------------------------------------------
+    // Instruction fields. Every RISC-V format keeps these in the same place,
+    // so they can be wired up unconditionally; the Decoder decides which ones matter.
+    //------------------------------------------------------------------
+    assign Opcode   = Instr[6:0] ;
+    assign rd       = Instr[11:7] ;
+    assign Funct3   = Instr[14:12] ;
+    assign rs1      = Instr[19:15] ;
+    assign rs2      = Instr[24:20] ;
+    assign Funct7   = Instr[31:25] ;
+    assign InstrImm = Instr[31:7] ;	// Extend picks the immediate bits out of this according to ImmSrc
+
+    //------------------------------------------------------------------
+    // Register file write port
+    //------------------------------------------------------------------
+    // While MCycle is Busy, the instruction is held and nothing is written. The result is written in the
+    // cycle in which Busy falls (Result1/Result2 are already final then), together with the PC update.
+    assign WE     = RegWrite & ~Busy ;
+    assign MCycleResult = MResultSel ? MCycleResult2 : MCycleResult1 ;
+    assign ExecResult   = MCycleSel ? MCycleResult : ALUResult ;	// RV32M instructions write the MCycle result
+    assign Result = MemtoReg ? ReadData : ExecResult ;	// lw writes memory data, everything else the ALU / MCycle result
+    assign WD     = Result ;
+
+    //------------------------------------------------------------------
+    // Data memory write data (sw stores rs2)
+    //------------------------------------------------------------------
+    assign WriteData = RD2 ;
+
+    //------------------------------------------------------------------
+    // ALU operand multiplexers
+    //------------------------------------------------------------------
+    always@(*) begin
+        case(ALUSrcA)
+            2'b00:   Src_A = RD1 ;		// normal case: rs1
+            2'b01:   Src_A = 32'd0 ;		// lui:  0 + imm
+            2'b10:   Src_A = PC ;		// auipc: PC + imm; jal/jalr link: PC + 4
+            default: Src_A = 32'bx ;
+        endcase
+    end
+
+    always@(*) begin
+        case(ALUSrcB)
+            2'b00:   Src_B = RD2 ;		// DP register type, branches (compare rs1 with rs2)
+            2'b01:   Src_B = ExtImm ;		// DP immediate, lw/sw address, lui, auipc
+            2'b10:   Src_B = 32'd4 ;		// jal/jalr link value PC + 4
+            default: Src_B = 32'bx ;
+        endcase
+    end
+
+    //------------------------------------------------------------------
+    // Next PC. This is the second (and last) 32-bit adder in the design.
+    //   PCSrc = 00 : PC  + 4        (normal, branch not taken)
+    //   PCSrc = 01 : PC  + ExtImm   (branch taken, jal)
+    //   PCSrc = 11 : RD1 + ExtImm   (jalr)
+    //------------------------------------------------------------------
+    assign PC_Base   = PCSrc[1] ? RD1 : PC ;
+    assign PC_Offset = PCSrc[0] ? ExtImm : 32'd4 ;
+    assign PC_Sum    = PC_Base + PC_Offset ;
+    assign PC_IN     = {PC_Sum[31:1], 1'b0} ;	// jalr target is (rs1 + imm) & ~1. For every other case
+                                            	// the sum is already even, so clearing bit 0 changes nothing.
+
+    // Instantiate RegFile
+    RegFile RegFile1(
+                    CLK,
+                    WE,
+                    rs1,
+                    rs2,
+                    rd,
+                    WD,
+                    RD1,
+                    RD2
+                );
+
+     // Instantiate Extend Module
+    Extend Extend1(
+                    ImmSrc,
+                    InstrImm,
+                    ExtImm
+                );
+
+    // Instantiate Decoder
+    Decoder Decoder1(
+                    Opcode,
+                    Funct3,
+                    Funct7,
+                    PCS,
+                    RegWrite,
+                    MemWrite,
+                    MemtoReg,
+                    ALUSrcA,
+                    ALUSrcB,
+                    ImmSrc,
+                    ALUControl,
+                    MStart,
+                    MCycleOp,
+                    MCycleSel,
+                    MResultSel
+                );
+
+    // Instantiate PC_Logic
+	PC_Logic PC_Logic1(
+                    PCS,
+                    Funct3,
+                    ALUFlags,
+                    PCSrc
+		);
+
+    // Instantiate ALU
+    ALU ALU1(
+                    Src_A,
+                    Src_B,
+                    ALUControl,
+                    ALUResult,
+                    ALUFlags
+                );
+
+    // Instantiate MCycle (multiplier / divider). Operands come straight from the register file.
+    MCycle #(.width(32)) MCycle1(
+                    .CLK(CLK),
+                    .RESET(RESET),
+                    .Start(MStart),
+                    .MCycleOp(MCycleOp),
+                    .Operand1(RD1),		// multiplicand / dividend (rs1)
+                    .Operand2(RD2),		// multiplier / divisor (rs2)
+                    .Result1(MCycleResult1),
+                    .Result2(MCycleResult2),
+                    .Busy(Busy)
+                );
+
+    // Instantiate ProgramCounter
+    ProgramCounter #(.PC_INIT(PC_INIT)) ProgramCounter1(
+                    CLK,
+                    RESET,
+                    WE_PC,
+                    PC_IN,
+                    PC
+                );
+endmodule
