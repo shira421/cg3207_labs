@@ -16,8 +16,9 @@ Part I prepares you for the demo: what to expect, a demo script, and our slides 
 | 3 | The original multiplier (shift-and-add) |
 | 4 | Task 1: restoring division, unsigned then signed |
 | 5 | Task 3: radix-2 Booth multiplication — the algorithm, proof, code and worked examples |
-| 5B | Radix-4 Booth (for the quiz) |
-| 5C | Other enhancement options |
+| 5B | Radix-4 Booth — idea, table, proof, hardware, Verilog, worked examples, radix-2 vs radix-4 side by side |
+| 5C | Practice problems with answers (radix-2 and radix-4) |
+| 5D | Other enhancement options |
 | 6 | Task 2: putting MCycle into the CPU |
 | 7 | The demo program |
 | 8 | How everything was tested |
@@ -39,7 +40,7 @@ From another group that has already demoed Assignment 3 (second-hand, not offici
 
 - **No debugging.** You don't fix anything live; you show a working design.
 - **"Else all same"**: the format is the same as the earlier demos. You run your program on the board, explain it, and show the required files and simulations.
-- **You will be quizzed on Booth.** That group did radix-4 and was told to "know radix-4 Booth to heart". Our enhancement is **radix-2 Booth**, so expect detailed questions on radix-2 (Section 5) and be ready for "how would radix-4 differ?" (Section 5B).
+- **You will be quizzed on Booth.** That group did radix-4 and was told to "know radix-4 Booth to heart". The quiz follows your own design, so for us it will be **mostly radix-2** (Section 5): the rule, why it works, the registers, and a trace by hand. Expect radix-4 as the follow-up ("how would you make it faster?", "what changes for radix-4?"), so know Section 5B too. Section 5C has practice problems for both.
 - **Everyone is scored individually**, so every member must be able to answer any question, including about parts they didn't write.
 
 The manual also says: only **one assembly program and one bitstream** for the whole demo, and the files must be **exactly** the ones submitted.
@@ -682,81 +683,224 @@ A **speed-for-area trade-off**: about 2× faster signed multiplication for about
 
 ---
 
-## 5B. Radix-4 (modified) Booth — know it for the quiz
+## 5B. Radix-4 (modified) Booth — the full story
 
-Another group did radix-4 and was quizzed on it in depth. Even though we implemented radix-2, a TA may ask "how would you make it faster?", and radix-4 is the standard answer.
+Our design is radix-2, so most quiz questions will be on radix-2 (Section 5). But "how would you make it faster?" leads straight to radix-4, and another group was told to know radix-4 by heart. This section covers it at the same depth. (We also built and tested a radix-4 version first; it's in the git history at commit `6c27ed1`, and its Verilog is shown in 5B.7.)
 
-### 5B.1 The idea
+### 5B.1 The idea: two bits per cycle
 
-Radix-2 Booth handles **1 bit per cycle**. Radix-4 handles **2 bits per cycle** by grouping the multiplier into pairs and recoding each pair into one digit from **{−2, −1, 0, +1, +2}**. Every digit is cheap:
+Radix-2 Booth looks at one new multiplier bit per cycle and chooses from {−M, 0, +M}. Radix-4 looks at **two** new bits per cycle and chooses from **{−2M, −M, 0, +M, +2M}**, then shifts by **2**. Half as many iterations: 16 instead of 32 for 32-bit.
 
-- ×0: nothing; ×1: M; ×2: M shifted left by 1 (just wiring); negative: invert and add 1.
+Why these five multiples? A pair of bits is a base-4 digit 0–3. Digit 3 would need 3M = 2M + M, which is a second addition, i.e. a second adder or an extra cycle. Booth's trick (again) is to use negative digits so that 3 never appears: "3" is written as "4 − 1", i.e. −1 here and +1 carried into the next pair. Every digit left is cheap:
 
-(Plain base 4 would need digit 3, and 3M = 2M + M needs a second adder. Booth avoids 3.)
+- 0: nothing
+- ±M: M, or ~M + 1
+- ±2M: M shifted left by one bit (just wiring), or its negation
 
 ### 5B.2 The recoding table
 
-Look at **overlapping groups of 3 bits** (Q<sub>2i+1</sub>, Q<sub>2i</sub>, Q<sub>2i−1</sub>), with Q<sub>−1</sub> = 0. Digit i is
+Look at **overlapping groups of 3 bits** (Q<sub>2i+1</sub>, Q<sub>2i</sub>, Q<sub>2i−1</sub>), stepping by 2, with Q<sub>−1</sub> = 0. Group i gives
 
 **d<sub>i</sub> = −2·Q<sub>2i+1</sub> + Q<sub>2i</sub> + Q<sub>2i−1</sub>**
 
-| Q<sub>2i+1</sub> Q<sub>2i</sub> Q<sub>2i−1</sub> | digit | add to A |
+| Q<sub>2i+1</sub> Q<sub>2i</sub> Q<sub>2i−1</sub> | d<sub>i</sub> | Add to A | In words |
+|---|---|---|---|
+| 0 0 0 | 0 | nothing | inside a run of 0s |
+| 0 0 1 | +1 | +M | a run of 1s ended at the lower bit |
+| 0 1 0 | +1 | +M | a single 1 |
+| 0 1 1 | +2 | +2M | a run of 1s ends after this pair |
+| 1 0 0 | −2 | −2M | a run of 1s starts at the upper bit |
+| 1 0 1 | −1 | −M | a run ends and another starts |
+| 1 1 0 | −1 | −M | a run of 1s starts at the lower bit |
+| 1 1 1 | 0 | nothing | inside a run of 1s |
+
+**How to rebuild the table in the exam without memorising it:** the left bit counts **−2**, the middle and right bits count **+1** each. E.g. 101 = −2 + 0 + 1 = −1; 011 = 0 + 1 + 1 = +2.
+
+### 5B.3 Why it works (the proof)
+
+**Short proof — it's two radix-2 digits merged.** Radix-2 Booth uses e<sub>k</sub> = Q<sub>k−1</sub> − Q<sub>k</sub> at each bit k. Take two neighbouring radix-2 digits, at positions 2i (weight 1) and 2i+1 (weight 2), relative to 4<sup>i</sup>:
+
+e<sub>2i</sub> + 2·e<sub>2i+1</sub> = (Q<sub>2i−1</sub> − Q<sub>2i</sub>) + 2·(Q<sub>2i</sub> − Q<sub>2i+1</sub>) = **−2Q<sub>2i+1</sub> + Q<sub>2i</sub> + Q<sub>2i−1</sub>** = d<sub>i</sub>
+
+So Σ d<sub>i</sub>·4<sup>i</sup> = Σ e<sub>k</sub>·2<sup>k</sup>, which Section 5.3 already proved equals the multiplier's **signed** value (the top bit keeps only −2<sup>w−1</sup>). Radix-4 inherits the signed handling from radix-2 for free.
+
+**Check with Q = 6 = 0110:** groups (Q₁,Q₀,Q₋₁) = (1,0,0) → −2; (Q₃,Q₂,Q₁) = (0,1,1) → +2. Value: −2·1 + 2·4 = 6 ✓.
+
+**Check with Q = −3 = 1101:** (0,1,0) → +1; (1,1,0) → −1. Value: 1 − 4 = −3 ✓.
+
+### 5B.4 The hardware
+
+Same structure as radix-2, with four differences:
+
+| | Radix-2 (ours) | Radix-4 |
 |---|---|---|
-| 000 | 0 | nothing |
-| 001 | +1 | +M |
-| 010 | +1 | +M |
-| 011 | +2 | +2M |
-| 100 | −2 | −2M |
-| 101 | −1 | −M |
-| 110 | −1 | −M |
-| 111 | 0 | nothing |
+| Bits examined per cycle | 2: {Q₀, Q₋₁} | 3: {Q₁, Q₀, Q₋₁} |
+| Choices for the adder input | 0, M, −M | 0, M, −M, 2M, −2M |
+| A width | w+1 | **w+2** (2M of the most negative M needs one more bit) |
+| Shift per cycle | 1 (arithmetic) | **2** (arithmetic) |
+| Iterations (w = 32) | 32 | **16** |
+| After the shift, Q₋₁ = | the bit shifted out (old Q₀) | the **higher** of the two bits shifted out (old Q₁) |
 
-Memory aid: the middle and right bits each count +1, the left bit counts −2.
+Datapath: the control decodes the 3 bits into "which multiple" (0 / M / 2M) and "negate?". A mux picks 0, M or M << 1; an XOR with the negate signal plus a carry-in of 1 makes it negative; one adder adds it to A; then {A, Q, Q₋₁} shifts right by 2, copying A's sign into both new top bits.
 
-**Connection to radix-2:** each radix-4 digit is just two radix-2 Booth digits combined: d<sub>i</sub>(radix-4) = 2·(Q<sub>2i</sub> − Q<sub>2i+1</sub>) + (Q<sub>2i−1</sub> − Q<sub>2i</sub>) = −2Q<sub>2i+1</sub> + Q<sub>2i</sub> + Q<sub>2i−1</sub>. Same proof, same reason it handles the sign bit (the top bit keeps only its −2 part, which gives the −2<sup>w−1</sup> weight).
+**Why A needs w+2 bits:** in 4 bits, M can be −8, and 2M = −16 needs 5 bits; with headroom for the running sum's sign, 6. In general w+2. (Our tested version used w+3 because it also extended M by one bit for unsigned numbers, 5B.7.)
 
-**Check with Q = 6 = 0110:** groups (Q1,Q0,Q₋₁) = (1,0,0) → −2; (Q3,Q2,Q1) = (0,1,1) → +2. Value: −2·1 + 2·4 = 6 ✓.
+**Why Q₋₁ takes the higher shifted-out bit:** the next group overlaps the previous one in exactly that bit (Q<sub>2i+1</sub> of this group is Q<sub>2(i+1)−1</sub> of the next).
 
-### 5B.3 The hardware
+### 5B.5 Worked example 1: −3 × 6 in 4 bits
 
-Same structure as radix-2, with three changes:
+M = −3 = **111101** (6 bits). Q = 6 = **0110**, A = 000000, Q₋₁ = 0. **Two** iterations.
 
-1. A is **w+2 bits** (M is w bits sign-extended, but 2M needs one more bit, and the running sum needs headroom).
-2. A 3-way select becomes a 5-way select: 0, ±M, ±2M (2M is M shifted by one, no extra adder).
-3. Each cycle shifts {A, Q, Q₋₁} right by **2** (arithmetic) instead of 1.
-
-**w/2 = 16 iterations** for 32-bit (17 cycles with write-back), against 32 for radix-2 and 64 for the baseline.
-
-### 5B.4 Worked example: −3 × 6 in 4 bits, radix-4
-
-M = −3 = **111101** (6 bits), Q = 6 = **0110**, A = 000000, Q₋₁ = 0. Two iterations.
-
-| Edge | bits {Q₁, Q₀, Q₋₁} | digit | A + d·M | sum | A after (>>>2) | Q after | Q₋₁ after |
+| Edge | {Q₁, Q₀, Q₋₁} | digit | A + d·M | sum (6 bits) | A after (>>>2) | Q after | Q₋₁ after |
 |---|---|---|---|---|---|---|---|
 | 1 | 1 0 0 | −2 | 0 − 2(−3) = 6 | 000110 | 000001 | 1001 | 1 |
 | 2 | 0 1 1 | +2 | 1 + 2(−3) = −5 | 111011 | 111110 | 1110 | 0 |
 
-Product = {A[3:0], Q} = 1110 1110 = 0xEE = **−18** ✓.
+**Doing edge 1's shift by hand:** {A, Q, Q₋₁} = 000110 0110 0 (11 bits). Shift right by **2**, copying the sign (0) twice: 00 000110 0110 0 → drop the two lowest bits → **000001 1001 1**. The two low bits of the sum (10) went into the top of Q; the two used multiplier bits (Q₁Q₀ = 10) fell out, and the **higher** one (1) is the new Q₋₁.
 
-How edge 1's shift works: {A, Q, Q₋₁} = 000110 0110 0 → shift right by 2, copying the sign → 000001 1001 1. The two low bits of the sum (10) went into the top of Q; the two used multiplier bits (10) fell out, and the higher of them (Q₁ = 1) became the new Q₋₁.
+Product = {A[3:0], Q} = **1110 1110 = 0xEE = −18** ✓.
 
-More checks (all verified): −8 × −8 = +64 (bits 000 → 0, then 100 → −2: A = 0 − 2(−8) = +16); 7 × −3 = −21 (010 → +1, then 110 → −1).
+### 5B.6 Worked example 2: the same multiplication in radix-2 and radix-4 (25 × −14, 8 bits)
 
-### 5B.5 Comparison
+This shows that **one radix-4 step = two radix-2 steps**. M = 25, Q = −14 = 1111 0010. Product −350.
 
-| 32-bit signed multiply | Baseline | Radix-2 Booth (ours) | Radix-4 Booth |
+**Radix-2** (8 iterations; A 9 bits):
+
+| Edge | pair | op | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|
+| 1 | 00 | hold | 000000000 | 01111001 | 0 |
+| 2 | 10 | A − M | 111110011 | 10111100 | 1 |
+| 3 | 01 | A + M | 000000110 | 01011110 | 0 |
+| 4 | 00 | hold | 000000011 | 00101111 | 0 |
+| 5 | 10 | A − M | 111110101 | 00010111 | 1 |
+| 6 | 11 | hold | 111111010 | 10001011 | 1 |
+| 7 | 11 | hold | 111111101 | 01000101 | 1 |
+| 8 | 11 | hold | 111111110 | 10100010 | 1 |
+
+**Radix-4** (4 iterations; A 10 bits):
+
+| Edge | bits | digit | A + d·M | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|---|
+| 1 | 100 | −2 | −50 | 1111110011 | 10111100 | 1 |
+| 2 | 001 | +1 | 12 | 0000000011 | 00101111 | 0 |
+| 3 | 110 | −1 | −22 | 1111111010 | 10001011 | 1 |
+| 4 | 111 | 0 | −6 | 1111111110 | 10100010 | 1 |
+
+Compare radix-4 edge 1 with radix-2 edge 2, radix-4 edge 2 with radix-2 edge 4, and so on: **the same values** (A is one bit wider in radix-4). The radix-4 digits are the radix-2 digits paired: (0, −1) → 0 + 2(−1) = −2; (+1, 0) → +1; (−1, 0) → −1; (0, 0) → 0. Both end with {A[7:0], Q} = 1111 1110 1010 0010 = **−350** ✓.
+
+### 5B.7 Worked example 3: hard cases with the most negative M (4 bits, M = −8)
+
+| Multiplication | Edge 1 | Edge 2 | Product |
 |---|---|---|---|
-| Bits per cycle | 1 (of 64) | 1 (of 32) | 2 (of 32) |
-| Iterations / cycles | 64 / 65 | 32 / 33 | 16 / 17 |
-| Partial-product choices | 0, M | 0, ±M | 0, ±M, ±2M |
-| Adder width | 64 | 33 | 34 |
-| Shift per cycle | 1 | 1 | 2 |
+| −8 × −8 (Q = 1000) | 000 → 0: A = 0 | 100 → −2: A = 0 − 2(−8) = **+16** | 0100 0000 = **+64** ✓ |
+| −8 × 7 (Q = 0111) | 110 → −1: A = +8 | 011 → +2: A = 2 + 2(−8) = −14 | 1100 1000 = **−56** ✓ |
+| −8 × −6 (Q = 1010) | 100 → −2: A = +16 | 101 → −1: A = 4 + 8 = 12 | 0011 0000 = **+48** ✓ |
 
-Our earlier radix-4 version (git commit `6c27ed1`) extended the operands by one more bit so the same hardware also did **unsigned** multiplication, at 17 iterations / **18 cycles** for both, and it was smaller than the baseline (it replaced the 64-bit datapath instead of adding beside it). **Radix-8** would handle 3 bits per cycle but needs digit ±3, i.e. 3M, which takes an extra adder (or a precomputed 3M register), so radix-4 is the usual sweet spot.
++16 needs 6 signed bits, which is why A is w+2 = 6 bits for w = 4.
+
+### 5B.8 The tested Verilog (our earlier version, commit `6c27ed1`)
+
+This version also handled **unsigned** numbers with the same hardware. It extended both operands by one bit (the sign for signed, 0 for unsigned), so they became (w+1)-bit signed numbers, and padded the multiplier to w+2 bits to make the bit count even. That's 17 iterations / **18 cycles** for both signed and unsigned at 32 bits, and A was w+3 bits.
+
+```verilog
+booth_bits = { n_shifted_op2[1:0], n_booth_prev } ;          // {Q1, Q0, Q-1}
+case( booth_bits )
+    3'b001, 3'b010, 3'b101, 3'b110: booth_pp = M  (sign-extended) ;
+    3'b011, 3'b100:                 booth_pp = 2M (M shifted left 1) ;
+    default:                        booth_pp = 0 ;
+endcase
+booth_neg = booth_bits[2] & ~(booth_bits[1] & booth_bits[0]) ;  // 100, 101, 110 are negative
+booth_sum = n_booth_acc + (booth_pp ^ {(width+3){booth_neg}}) + booth_neg ;  // one adder: +pp or ~pp+1
+
+n_booth_prev  = n_shifted_op2[1] ;                                   // the higher shifted-out bit
+n_shifted_op2 = { booth_sum[1:0], n_shifted_op2[width+1:2] } ;       // 2 product bits in, 2 used bits out
+n_booth_acc   = { {2{booth_sum[width+2]}}, booth_sum[width+2:2] } ;  // >>> 2: copy the sign twice
+```
+
+Line by line: build the 3-bit group; pick |d|·M (M or 2M or 0); `booth_neg` is 1 exactly for 100, 101, 110 (left bit 1, but not 111); invert-and-add-1 makes it negative inside the single adder; then shift by 2, saving Q₁ as the new Q₋₁. It passed the same 76,083-check testbench as the final design.
+
+### 5B.9 Radix-2 vs radix-4 vs baseline (32-bit signed multiply)
+
+| | Baseline | **Radix-2 Booth (ours)** | Radix-4 Booth |
+|---|---|---|---|
+| Multiplier bits handled per cycle | 1 (of a 64-bit sign extension) | 1 | 2 |
+| Iterations / cycles incl. write-back | 64 / 65 | **32 / 33** | 16 / 17 (18 in our unsigned-capable version) |
+| Adder input choices | 0, M | 0, ±M | 0, ±M, ±2M |
+| Control | 1 bit | 2 bits → add / sub / hold | 3 bits → mux (0/M/2M) + negate |
+| A width | 64-bit sum | 33 | 34 (35 in our version) |
+| Shift | multiplicand ← 1, multiplier → 1 | {A,Q,Q₋₁} >>> 1 | {A,Q,Q₋₁} >>> 2 |
+| Complexity | lowest | low | a little more (wider mux, 3-bit decode) |
+
+**Going further:** radix-8 handles 3 bits per cycle but needs digits up to ±4, including **±3M**, which isn't a shift: it needs an extra adder or a precomputed 3M register. That's why radix-4 is the usual sweet spot.
+
+### 5B.10 Unsigned and odd widths in radix-4
+
+Booth (any radix) treats the top bit as negative, so for unsigned numbers you first add a 0 on top, which makes the bit count odd. Radix-4 consumes bits in pairs, so you pad by one more bit (a copy of the new top bit) to make it even. That's why our earlier version used w+2 = 34 multiplier bits → 17 iterations.
 
 ---
 
-## 5C. Other enhancement options (for "why Booth?" questions)
+## 5C. Practice problems (with answers)
+
+Do these on paper, then check them in `booth_visualisation.html` (radix-2) or against the answers.
+
+**Radix-2, 4-bit:**
+
+**Problem 1 — 5 × −3.** M = 00101, −M = 11011, Q = 1101.
+
+| Edge | pair | op | A before shift | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|---|
+| 1 | 10 | A − M | 11011 | 11101 | 1110 | 1 |
+| 2 | 01 | A + M | 00010 | 00001 | 0111 | 0 |
+| 3 | 10 | A − M | 11100 | 11110 | 0011 | 1 |
+| 4 | 11 | hold | 11110 | 11111 | 0001 | 1 |
+
+Product 1111 0001 = **−15**.
+
+**Problem 2 — −4 × −4.** M = 11100, −M = 00100, Q = 1100.
+
+| Edge | pair | op | A before shift | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|---|
+| 1 | 00 | hold | 00000 | 00000 | 0110 | 0 |
+| 2 | 00 | hold | 00000 | 00000 | 0011 | 0 |
+| 3 | 10 | A − M | 00100 | 00010 | 0001 | 1 |
+| 4 | 11 | hold | 00010 | 00001 | 0000 | 1 |
+
+Product 0001 0000 = **+16**.
+
+**Problem 3 — 7 × −3.** Edges: 10 A − M → 11100 / 1110 / 1; 01 A + M → 00001 / 1111 / 0; 10 A − M → 11101 / 0111 / 1; 11 hold → 11110 / 1011 / 1. Product 1110 1011 = **−21**.
+
+**Radix-4, 4-bit (A 6 bits):**
+
+**Problem 4 — −5 × 7.** M = 111011, Q = 0111.
+
+| Edge | bits | digit | A + d·M | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|---|
+| 1 | 110 | −1 | 0 + 5 = 5 | 000001 | 0101 | 1 |
+| 2 | 011 | +2 | 1 − 10 = −9 | 111101 | 1101 | 0 |
+
+Product 1101 1101 = **−35**.
+
+**Problem 5 — 6 × 6.** M = 000110, Q = 0110.
+
+| Edge | bits | digit | A + d·M | A after | Q after | Q₋₁ |
+|---|---|---|---|---|---|---|
+| 1 | 100 | −2 | −12 | 111101 | 0001 | 1 |
+| 2 | 011 | +2 | −3 + 12 = 9 | 000010 | 0100 | 0 |
+
+Product 0010 0100 = **+36**.
+
+**Problem 6 — 7 × −3.** Edges: 010 → +1: A = 7 → 000001 / 1111 / 0; 110 → −1: A = 1 − 7 = −6 → 111110 / 1011 / 1. Product 1110 1011 = **−21** (2 edges, against 4 in radix-2 for the same problem).
+
+**Quick recoding drills** (answers in brackets):
+- Radix-2 digits of 0111 (from the right): [−1, 0, 0, +1 → −1 + 8 = 7]
+- Radix-2 digits of 1000: [0, 0, 0, −1 → −8]
+- Radix-4 digits of 0111: [(1,1,0) → −1; (0,1,1) → +2 → −1 + 8 = 7]
+- Radix-4 digits of 1000: [(0,0,0) → 0; (1,0,0) → −2 → −8]
+- Radix-4 digits of 0101: [(0,1,0) → +1; (0,1,0) → +1 → 1 + 4 = 5]
+
+---
+
+## 5D. Other enhancement options (for "why Booth?" questions)
 
 | Option | What it does | Effect |
 |---|---|---|
@@ -1135,8 +1279,31 @@ w/2 = 16 for 32-bit, shifting right by 2 each time.
 **Why is A w+2 bits in radix-4?**
 ±2M needs one more bit than M, and the sum needs headroom for its sign.
 
-**What's 100 / 011 / 111?**
-100 → −2M; 011 → +2M; 111 → 0.
+**What's 100 / 011 / 111 / 101?**
+100 → −2M; 011 → +2M; 111 → 0; 101 → −M. (Left bit −2, middle and right +1 each.)
+
+**How is radix-4 related to radix-2?**
+Each radix-4 digit is two radix-2 digits merged: d = e<sub>2i</sub> + 2e<sub>2i+1</sub> = −2Q<sub>2i+1</sub> + Q<sub>2i</sub> + Q<sub>2i−1</sub>. One radix-4 step gives exactly the same A and Q as two radix-2 steps (Section 5B.6), so it inherits the signed-number proof.
+
+**Why can't radix-4 use digit 3?**
+3M = 2M + M isn't a shift; it would need a second adder or a precomputed 3M. Booth rewrites 3 as 4 − 1 (−1 here, +1 into the next group), so only 0, ±1, ±2 are needed.
+
+**After a radix-4 step, what goes into Q₋₁?**
+The higher of the two bits shifted out (old Q₁), because the next group overlaps this one in that bit.
+
+**How do you negate in radix-4?**
+Pick |d|·M (M or M shifted left 1), then XOR every bit with the negate signal and add it as the carry-in: ~pp + 1.
+
+**Recode 0111 (radix-4).** (1,1,0) → −1; (0,1,1) → +2: −1 + 2·4 = 7.
+
+**How many iterations for 32-bit unsigned in radix-4?**
+Unsigned needs a 0 on top (33 bits), padded to an even 34 bits: 17 iterations (18 cycles). That's what our first version did.
+
+**Would radix-4 cost more hardware than your radix-2?**
+Slightly more datapath: a 5-way choice (0, ±M, ±2M) instead of 3, a 3-bit decode, and A one bit wider. The registers are about the same. Our earlier radix-4 version was actually smaller than the baseline, because it replaced the 64-bit datapath for both signed and unsigned instead of adding beside it.
+
+**What about radix-8?**
+Digits up to ±4 include ±3M, which needs an extra adder or a precomputed 3M. That's why radix-4 is the usual choice.
 
 ### Division (Task 1)
 
@@ -1265,7 +1432,7 @@ Upload before your lab slot, as **`GroupXX_Monday/Friday_Asst3.zip`** (your Assi
 
 **Why it works:** d<sub>i</sub> = Q<sub>i−1</sub> − Q<sub>i</sub>; Σ d<sub>i</sub>2<sup>i</sup> = signed value (top bit keeps −2<sup>w−1</sup>). Runs of 1s: 2<sup>j+1</sup> − 2<sup>i</sup>.
 
-**Radix-4:** groups (Q<sub>2i+1</sub>, Q<sub>2i</sub>, Q<sub>2i−1</sub>): 000/111 0, 001/010 +M, 011 +2M, 100 −2M, 101/110 −M; shift by 2; 16 iterations; A w+2 bits.
+**Radix-4:** groups (Q<sub>2i+1</sub>, Q<sub>2i</sub>, Q<sub>2i−1</sub>), left bit −2, others +1: 000/111 0, 001/010 +M, 011 +2M, 100 −2M, 101/110 −M. Choose 0/M/2M, negate by ~pp + 1; {A,Q,Q₋₁} >>> 2; new Q₋₁ = old Q₁; 16 iterations (17 cycles); A w+2 bits. One radix-4 step = two radix-2 steps. −3 × 6: 100 → A = +6 → 000001|1001|1; 011 → A = −5 → 111110|1110|0 → 1110 1110 = −18.
 
 **−3 × 5 (4-bit):** M 11101, −M 00011, Q 0101. Edges: 10 A−M → 00001|1010|1; 01 A+M → 11111|0101|0; 10 → 00001|0010|1; 01 → 11111|0001|0. Product 1111 0001 = −15.
 
@@ -1277,4 +1444,4 @@ Upload before your lab slot, as **`GroupXX_Monday/Friday_Asst3.zip`** (your Assi
 
 **Numbers:** signed mul 64 → 32 iterations (65 → 33 cycles); Vivado (slide 5) 487 → 650 LUTs (+33.5%), 266 → 365 FFs (+37.2%), 0 DSP, 0 latches. Tests: 76,083 MCycle checks, 229 CPU checks, 6,703 RV32I checks.
 
-**Practice:** −7 ÷ 2, 5 × −2 and 6 × −2 by hand; check in the visualisation and on the board.
+**Practice:** Section 5C (radix-2 and radix-4, with answers); −7 ÷ 2 for division. Check radix-2 in the visualisation and on the board.
