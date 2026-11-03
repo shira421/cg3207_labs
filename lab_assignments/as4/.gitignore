@@ -1,0 +1,4 @@
+sw/build/*.bin
+sw/build/*.elf
+sim/__pycache__/
+*.zip
