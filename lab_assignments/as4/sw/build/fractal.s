@@ -97,7 +97,7 @@ main:
 	sw	a4,28(sp)
 	addi	t3,t3,%lo(.LANCHOR2)
 	li	ra,134217728
-.L59:
+.L60:
 	lw	a4,12(sp)
 	lw	a2,16(sp)
 	lw	a1,0(a4)
@@ -129,47 +129,50 @@ main:
 	addi	a2,a2,-6
 .L13:
 	slli	a6,a1,19
-	blt	a6,zero,.L15
+	bge	a6,zero,.L15
 	neg	a4,a4
-	neg	a2,a2
 .L15:
+	slli	a6,a1,18
+	bge	a6,zero,.L16
+	neg	a2,a2
+.L16:
 	lw	t4,0(a5)
 	lui	a6,%hi(.LANCHOR1+8)
 	addi	a6,a6,%lo(.LANCHOR1+8)
-	beq	t4,zero,.L16
-	addi	a6,a3,4
-.L16:
-	lw	t4,0(a5)
 	beq	t4,zero,.L17
+	addi	a6,a3,4
+.L17:
+	lw	t4,0(a5)
+	beq	t4,zero,.L18
 	lw	t4,4(a5)
-	slli	a4,a4,10
 	slli	a2,a2,10
-	add	a4,a4,t4
-	sw	a4,4(a5)
-	lw	a4,8(a5)
-	sub	a2,a4,a2
-	sw	a2,8(a5)
-.L18:
+	slli	a4,a4,10
+	sub	a2,t4,a2
+	sw	a2,4(a5)
+	lw	a2,8(a5)
+	add	a4,a4,a2
+	sw	a4,8(a5)
+.L19:
 	andi	a4,a0,1
-	beq	a4,zero,.L22
+	beq	a4,zero,.L23
 	lw	a4,0(a6)
 	li	a2,64
-	ble	a4,a2,.L22
+	ble	a4,a2,.L23
 	srai	a2,a4,4
 	sub	a4,a4,a2
 	sw	a4,0(a6)
-.L22:
+.L23:
 	andi	a0,a0,4
-	beq	a0,zero,.L23
+	beq	a0,zero,.L24
 	lw	a2,0(a6)
 	li	a4,1396736
 	addi	a4,a4,1364
-	bgt	a2,a4,.L23
+	bgt	a2,a4,.L24
 	srai	a4,a2,4
 	addi	a4,a4,1
 	add	a4,a4,a2
 	sw	a4,0(a6)
-.L23:
+.L24:
 	li	a4,-65536
 	addi	a4,a4,160
 	lw	a4,0(a4)
@@ -184,19 +187,19 @@ main:
 	sw	a0,0(a4)
 	lw	s1,0(a5)
 	andi	a0,a1,8
-	beq	a0,zero,.L24
-	beq	s1,zero,.L25
+	beq	a0,zero,.L25
+	beq	s1,zero,.L26
 	lw	t2,4(a3)
 	li	a0,0
-.L26:
+.L27:
 	li	a4,-48
 	mul	a4,t2,a4
 	li	t5,0
 	add	a4,a4,a0
 	sw	a4,8(sp)
-	bne	s1,zero,.L27
+	bne	s1,zero,.L28
 	lw	t5,12(a5)
-.L27:
+.L28:
 	lw	a0,20(a5)
 	slli	a4,t2,5
 	sub	t5,t5,a4
@@ -216,16 +219,16 @@ main:
 	addi	s2,s2,40
 	li	s8,96
 	li	s7,64
-.L28:
+.L29:
 	lw	s0,8(sp)
 	li	t0,0
 	addi	s6,t6,-29
-.L37:
+.L38:
 	mv	a4,a2
-	beq	s1,zero,.L62
+	beq	s1,zero,.L63
 	mv	a6,t5
 	mv	s3,s0
-.L31:
+.L32:
 	mul	t4,s3,s3
 	mulh	s4,s3,s3
 	srli	t4,t4,25
@@ -242,32 +245,32 @@ main:
 	slli	a6,a6,8
 	or	s5,a6,s5
 	add	a6,t4,s4
-	bgeu	a6,ra,.L33
+	bgeu	a6,ra,.L34
 	sub	t4,t4,s4
 	addi	a4,a4,-1
 	add	s3,t4,s11
 	add	a6,s10,s5
-	bne	a4,zero,.L31
-.L33:
+	bne	a4,zero,.L32
+.L34:
 	sub	a4,a2,a4
 	add	a0,a0,a4
 	li	a6,0
-	beq	a2,a4,.L34
+	beq	a2,a4,.L35
 	slli	a4,a4,2
 	add	a4,a4,s9
 	andi	a4,a4,63
 	slli	a4,a4,1
 	add	a4,t3,a4
 	lhu	a6,512(a4)
-.L34:
-	bne	s1,zero,.L35
+.L35:
+	bne	s1,zero,.L36
 	li	a4,48
-	bne	t0,a4,.L36
-	bgtu	s6,t1,.L35
-.L65:
+	bne	t0,a4,.L37
+	bgtu	s6,t1,.L36
+.L66:
 	li	a6,65536
 	addi	a6,a6,-1
-	j	.L35
+	j	.L36
 .L9:
 	li	t4,-6
 	ble	a4,t4,.L11
@@ -282,43 +285,43 @@ main:
 .L14:
 	addi	a2,a2,6
 	j	.L13
-.L17:
-	lw	t4,0(a6)
-	lw	t5,0(a3)
-	srai	t4,t4,3
-	mul	a4,a4,t4
-	mul	a2,a2,t4
-	lw	t4,12(a5)
-	add	a4,a4,t5
-	sw	a4,0(a3)
+.L18:
+	lw	t5,0(a6)
+	lw	t4,0(a3)
+	srai	t5,t5,3
+	mul	a2,a2,t5
+	mul	a4,a4,t5
 	sub	a2,t4,a2
-	sw	a2,12(a5)
-	li	t4,50331648
-	ble	a4,t4,.L19
-.L93:
-	sw	t4,0(a3)
-	j	.L20
-.L19:
-	li	t4,-83886080
-	blt	a4,t4,.L93
-.L20:
-	li	a4,50331648
-	ble	a2,a4,.L21
-.L94:
+	lw	t4,12(a5)
+	sw	a2,0(a3)
+	add	a4,a4,t4
 	sw	a4,12(a5)
-	j	.L18
+	li	t4,50331648
+	ble	a2,t4,.L20
+.L101:
+	sw	t4,0(a3)
+	j	.L21
+.L20:
+	li	t4,-83886080
+	blt	a2,t4,.L101
 .L21:
-	li	a4,-50331648
-	blt	a2,a4,.L94
-	j	.L18
-.L25:
+	li	a2,50331648
+	ble	a4,a2,.L22
+.L102:
+	sw	a2,12(a5)
+	j	.L19
+.L22:
+	li	a2,-50331648
+	blt	a4,a2,.L102
+	j	.L19
+.L26:
 	lw	t2,8(a3)
 	lw	a0,0(a3)
-	j	.L26
-.L62:
+	j	.L27
+.L63:
 	li	a6,0
 	li	s3,0
-.L29:
+.L30:
 	mul	t4,s3,s3
 	mulh	s4,s3,s3
 	srli	t4,t4,25
@@ -335,74 +338,74 @@ main:
 	slli	a6,a6,8
 	or	s5,a6,s5
 	add	a6,t4,s4
-	bgeu	a6,ra,.L33
+	bgeu	a6,ra,.L34
 	sub	t4,t4,s4
 	addi	a4,a4,-1
 	add	s3,t4,s0
 	add	a6,s5,t5
-	bne	a4,zero,.L29
-	j	.L33
-.L36:
+	bne	a4,zero,.L30
+	j	.L34
+.L37:
 	li	a4,32
-	bne	t6,a4,.L35
+	bne	t6,a4,.L36
 	addi	a4,t0,-45
-	bleu	a4,t1,.L65
-.L35:
+	bleu	a4,t1,.L66
+.L36:
 	sh	a6,0(s2)
 	addi	t0,t0,1
 	add	s0,s0,t2
-	bne	t0,s8,.L37
+	bne	t0,s8,.L38
 	addi	t6,t6,1
 	add	t5,t5,t2
-	bne	t6,s7,.L28
-.L38:
+	bne	t6,s7,.L29
+.L39:
 	li	a4,-65536
 	sw	a0,24(a5)
 	addi	a4,a4,160
 	lw	a4,0(a4)
 	lw	a2,4(sp)
 	sub	a4,a4,a2
-	bne	a7,zero,.L52
+	bne	a7,zero,.L53
 	li	a2,-65536
 	li	a0,3
 	sw	a0,96(a2)
-.L52:
+.L53:
 	li	a2,-65536
 	li	a0,8
 	sw	a0,44(a2)
 	slli	a2,a1,16
-	bge	a2,zero,.L53
+	bge	a2,zero,.L54
 	lw	a2,24(a5)
-	bne	a2,zero,.L54
+	bne	a2,zero,.L55
 	li	a2,1
-.L54:
+.L55:
 	divu	a4,a4,a2
-.L53:
+.L54:
 	li	a0,0
 	li	a2,0
 	li	t4,10
-.L55:
+.L56:
 	remu	a6,a4,t4
 	sll	a6,a6,a2
 	or	a0,a0,a6
 	addi	a2,a2,4
 	li	a6,32
 	divu	a4,a4,t4
-	bne	a2,a6,.L55
+	bne	a2,a6,.L56
 	li	a4,-65536
 	li	a2,-65536
 	sw	a0,128(a4)
 	addi	a2,a2,48
-.L57:
+.L58:
 	lw	a4,0(a2)
 	andi	a4,a4,1
-	bne	a4,zero,.L57
-	bne	a7,zero,.L58
+	bne	a4,zero,.L58
+	bne	a7,zero,.L59
 	li	a4,-65536
 	addi	a4,a4,64
 	lw	a4,0(a4)
 	sw	a4,16(a5)
-.L58:
+.L59:
 	lw	a4,20(a5)
 	addi	a7,a7,1
 	andi	a1,a1,15
@@ -421,19 +424,19 @@ main:
 	or	a4,a4,a2
 	li	a2,-65536
 	sw	a4,96(a2)
-	j	.L59
-.L24:
-	beq	s1,zero,.L39
+	j	.L60
+.L25:
+	beq	s1,zero,.L40
 	lw	t2,4(a3)
 	li	a4,0
-.L40:
+.L41:
 	li	t0,-48
 	mul	t0,t2,t0
 	li	a6,0
 	add	t0,t0,a4
-	bne	s1,zero,.L41
+	bne	s1,zero,.L42
 	lw	a6,12(a5)
-.L41:
+.L42:
 	lw	s2,20(a5)
 	slli	a4,t2,5
 	sub	a6,a6,a4
@@ -452,95 +455,95 @@ main:
 	addi	s7,s7,40
 	li	s9,96
 	li	s10,64
-.L42:
+.L43:
 	mv	s0,t0
 	li	t6,0
 	addi	s8,t5,-29
-.L51:
+.L52:
 	mv	a4,a2
-	beq	s1,zero,.L67
+	beq	s1,zero,.L68
 	mv	t4,a6
 	mv	s3,s0
-.L45:
+.L46:
  #APP
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 25, s11, t4, t4
 # 0 "" 2
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 25, s4, s3, s3
 # 0 "" 2
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 24, t4, s3, t4
 # 0 "" 2
  #NO_APP
 	add	s3,s4,s11
-	bgeu	s3,ra,.L47
+	bgeu	s3,ra,.L48
 	sub	s4,s4,s11
 	addi	a4,a4,-1
 	add	s3,s4,s5
 	add	t4,s6,t4
-	bne	a4,zero,.L45
-.L47:
+	bne	a4,zero,.L46
+.L48:
 	sub	a4,a2,a4
 	add	a0,a0,a4
 	li	t4,0
-	beq	a2,a4,.L48
+	beq	a2,a4,.L49
 	slli	a4,a4,2
 	add	a4,a4,s2
 	andi	a4,a4,63
 	slli	a4,a4,1
 	add	a4,t3,a4
 	lhu	t4,512(a4)
-.L48:
-	bne	s1,zero,.L49
+.L49:
+	bne	s1,zero,.L50
 	li	a4,48
-	bne	t6,a4,.L50
-	bgtu	s8,t1,.L49
-.L70:
+	bne	t6,a4,.L51
+	bgtu	s8,t1,.L50
+.L71:
 	li	t4,65536
 	addi	t4,t4,-1
-	j	.L49
-.L39:
+	j	.L50
+.L40:
 	lw	t2,8(a3)
 	lw	a4,0(a3)
-	j	.L40
-.L67:
+	j	.L41
+.L68:
 	li	t4,0
 	li	s3,0
-.L43:
+.L44:
  #APP
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 25, s11, t4, t4
 # 0 "" 2
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 25, s4, s3, s3
 # 0 "" 2
-# 102 "demo/fractal.c" 1
+# 103 "demo/fractal.c" 1
 	.insn r 0x0b, 0, 24, t4, s3, t4
 # 0 "" 2
  #NO_APP
 	add	s3,s4,s11
-	bgeu	s3,ra,.L47
+	bgeu	s3,ra,.L48
 	sub	s4,s4,s11
 	addi	a4,a4,-1
 	add	s3,s4,s0
 	add	t4,t4,a6
-	bne	a4,zero,.L43
-	j	.L47
-.L50:
+	bne	a4,zero,.L44
+	j	.L48
+.L51:
 	li	a4,32
-	bne	t5,a4,.L49
+	bne	t5,a4,.L50
 	addi	a4,t6,-45
-	bleu	a4,t1,.L70
-.L49:
+	bleu	a4,t1,.L71
+.L50:
 	sh	t4,0(s7)
 	addi	t6,t6,1
 	add	s0,s0,t2
-	bne	t6,s9,.L51
+	bne	t6,s9,.L52
 	addi	t5,t5,1
 	add	a6,a6,t2
-	bne	t5,s10,.L42
-	j	.L38
+	bne	t5,s10,.L43
+	j	.L39
 	.size	main, .-main
 	.section	.rodata
 	.align	2
