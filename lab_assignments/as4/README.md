@@ -227,13 +227,13 @@ accesses. Size = `Funct3`, carried down the pipeline. The demo writes its pixels
 
 | Input | |
 |---|---|
-| Tilt the board | fly around the Mandelbrot set (accelerometer); in Julia mode, steer c so the set morphs |
+| Tilt the board | fly around the Mandelbrot set (accelerometer): tilt forward and the picture moves up, back and it moves down, right and it moves right. In Julia mode, tilting steers c so the set morphs. "Level" is how the board was held at start-up; press BTND to set it again |
 | BTNR / BTNL (hold) | zoom in / out |
 | BTNC | Mandelbrot ↔ Julia set of the point under the crosshair — **interrupt** |
 | SW0, SW1, SW2 | switch forwarding / branch prediction / the fast multiplier **off** (CPU_CTRL, every frame) |
 | SW3 | software: plain RV32IM (`mul` + `mulh` + shifts) instead of `mulsr` |
 | SW7–4 | max iterations = 32 + 16 × SW[7:4] (more detail, slower) |
-| SW12 | reverse the tilt directions |
+| SW12 / SW13 | flip the up/down / left/right tilt direction |
 | SW15 | 7-seg: 0 = cycles per frame, 1 = cycles per iteration (decimal) |
 
 | Output | |

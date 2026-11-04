@@ -19,7 +19,8 @@
  *   SW2   CPU: slow multiplier (Assignment 3 MCycle, 33 cycles, stalls the pipeline)  }
  *   SW3   software: plain RV32IM code (mul + mulh + shifts) instead of mulsr
  *   SW7-4 max iterations = 32 + 16 * SW[7:4]
- *   SW12  reverse the tilt directions (tilt is measured from how the board lay at start-up)
+ *   SW12  flip the up/down tilt direction, SW13 flip left/right
+ *         (tilt is measured from how the board was held at start-up: press BTND to set "level" again)
  *   SW15  7-segment: 0 = cycles per frame, 1 = cycles per iteration (both in decimal)
  * Buttons
  *   BTNR / BTNL  zoom in / out (held)
@@ -165,16 +166,22 @@ static int tilt(unsigned int now, unsigned int level)   /* 8-bit signed reading 
 static void controls(unsigned int dip, unsigned int pb)
 {
     unsigned int a = ACCEL;             /* <temp, X, Y, Z> */
-    int tx = tilt(a >> 16, accel_level >> 16), ty = tilt(a >> 8, accel_level >> 8);
-    if (dip & 0x1000) { tx = -tx; ty = -ty; }
+    /* As the board is held: the sensor's X axis is forward / back (positive = tilted forward,
+       checked on the board), its Y axis is left / right. SW12 / SW13 flip either one. */
+    int fwd  = tilt(a >> 16, accel_level >> 16);
+    int side = tilt(a >> 8, accel_level >> 8);
+    if (dip & 0x1000) fwd = -fwd;
+    if (dip & 0x2000) side = -side;
     int *s = julia ? &julia_step : &step;
 
+    /* tilt forward: the picture moves up (the view centre moves down the screen, +y);
+       tilt right: the picture moves right (the view centre moves left, -x) */
     if (julia) {                        /* tilt steers the Julia constant: the set morphs */
-        jc_x += tx * 1024;
-        jc_y -= ty * 1024;
+        jc_x -= side * 1024;
+        jc_y += fwd * 1024;
     } else {                            /* tilt flies around the Mandelbrot set */
-        centre_x += tx * (*s >> 3);
-        centre_y -= ty * (*s >> 3);
+        centre_x -= side * (*s >> 3);
+        centre_y += fwd * (*s >> 3);
         if (centre_x > FX(1.5)) centre_x = FX(1.5);
         if (centre_x < FX(-2.5)) centre_x = FX(-2.5);
         if (centre_y > FX(1.5)) centre_y = FX(1.5);
