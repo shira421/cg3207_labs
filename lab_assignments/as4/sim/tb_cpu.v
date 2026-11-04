@@ -12,7 +12,7 @@
 
  Plusargs
    +max=N          stop after N cycles (default 2 000 000)
-   +cpuctrl=N      force CPU_CTRL (bit 0 no forwarding, bit 1 no branch prediction)
+   +cpuctrl=N      force CPU_CTRL (bit 0 no forwarding, bit 1 no branch prediction, bit 2 slow multiplier)
    +toggle         force CPU_CTRL to a new random value every 1..63 cycles (switches flipped while running)
    +dip=N          value of the DIP switches
    +pb=FILE        push-button script: lines "cycle value" (value = PB[2:0], BTNL BTNC BTNR)
@@ -101,7 +101,7 @@ module tb_cpu;
 		toggle = $test$plusargs("toggle");
 		if ($value$plusargs("cpuctrl=%d", r)) begin
 			cpuctrl = r;
-			force dut.cpu_ctrl = cpuctrl[1:0];
+			force dut.cpu_ctrl = cpuctrl[2:0];
 		end
 		pb_have = 0;
 		if ($value$plusargs("pb=%s", pbfile)) begin
@@ -124,7 +124,7 @@ module tb_cpu;
 		if (toggle && --toggle_in <= 0) begin
 			toggle_in = 1 + ($random(toggle_seed) & 63);
 			cpuctrl = $random(toggle_seed);
-			force dut.cpu_ctrl = cpuctrl[1:0];
+			force dut.cpu_ctrl = cpuctrl[2:0];
 		end
 
 		// push-button script

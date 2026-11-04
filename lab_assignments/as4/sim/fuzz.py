@@ -77,9 +77,21 @@ class Gen:
             self.emit('lui x%d, 0x%x' % (self.dst(exclude), r.randrange(1 << 20)))
         elif k < 0.54:
             self.emit('auipc x%d, 0x%x' % (self.dst(exclude), r.randrange(1 << 20)))
-        elif k < 0.62:
+        elif k < 0.57:
             s1, s2 = self.src(), self.src()
             self.emit('%s x%d, x%d, x%d' % (r.choice(M_OPS), self.dst(exclude), s1, s2))
+        elif k < 0.62:
+            # multiply burst: independent and dependent multiplies back to back (pipelined multiplier),
+            # including mulsr with a random binary point, then a user of the last product
+            for _ in range(r.randint(1, 4)):
+                s1, s2 = self.src(), self.src()
+                if r.random() < 0.5:
+                    self.emit('.insn r 0x0b, 0, %d, x%d, x%d, x%d' % (r.randrange(32), self.dst(exclude), s1, s2))
+                else:
+                    self.emit('%s x%d, x%d, x%d' % (r.choice(['mul', 'mulh', 'mulhu']), self.dst(exclude), s1, s2))
+            if r.random() < 0.6:
+                s1, s2 = self.src(), self.src()
+                self.emit('%s x%d, x%d, x%d' % (r.choice(R_OPS), self.dst(exclude), s1, s2))
         elif k < 0.78:
             op, size = r.choice(LOADS)
             d = self.dst(exclude)
@@ -90,10 +102,18 @@ class Gen:
         elif k < 0.92:
             op, size = r.choice(STORES)
             self.emit('%s x%d, %d(x9)' % (op, self.src(), r.randrange(0, BUF, size)))
-        else:
+        elif k < 0.97:
             op, size = r.choice(STORES)
             off = r.choice([0x80, 0x60]) + r.randrange(0, 4, size)
             self.emit('%s x%d, %d(x7)' % (op, self.src(), off))
+        else:
+            # the program switches the CPU's enhancements itself (CPU_CTRL), sometimes right before
+            # a multiply, so a multiply can be in D at the moment the multiplier mode changes
+            self.emit('sw x%d, 0x70(x7)' % self.src())
+            for _ in range(r.randint(0, 2)):
+                self.emit('addi x0, x0, 0')
+            s1, s2 = self.src(), self.src()
+            self.emit('%s x%d, x%d, x%d' % (r.choice(['mul', 'mulh', 'mulhu', 'div']), self.dst(exclude), s1, s2))
 
     def block(self, n, depth=0, exclude=()):
         r = self.r
@@ -176,7 +196,7 @@ def pad_with_nops(text, n=3):
     for line in text.splitlines():
         out.append(line)
         s = line.split('#')[0].strip()
-        if s.startswith('.'):
+        if s.startswith('.') and not s.startswith('.insn'):
             if s.startswith('.data') or s.startswith('.section .data'):
                 in_text = False
             elif s.startswith('.text') or s.startswith('.section .text'):

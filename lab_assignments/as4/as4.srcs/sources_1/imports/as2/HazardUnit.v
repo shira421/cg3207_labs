@@ -15,8 +15,9 @@
   Data hazard, ALU result needed in E      -> forward from M (ExecResult_M) or W (Result_W). 0 cycles.
   Data hazard, value written in W, read D  -> RegFile write-through. 0 cycles.
   Load followed by a user of the load      -> stall F and D, bubble into E. 1 cycle.
+  Multiply followed by a user of the product -> the same (the pipelined multiplier finishes in M). 1 cycle.
   Mispredicted branch / jal / jalr / mret  -> flush D and E (the 2 wrong-path instructions). 2 cycles.
-  MCycle (mul/div) in E, Busy              -> stall F, D and E, bubble into M. ~33 cycles.
+  MCycle (div, or mul in slow mode) in E   -> stall F, D and E, bubble into M. ~33 cycles.
   Interrupt accepted                       -> flush D and E, like a taken jump.
 
   NoForward = 1 (runtime, CPU_CTRL[0])
@@ -47,6 +48,7 @@ module HazardUnit #(
     input [4:0] rd_E,
     input RegWrite_E,
     input MemtoReg_E,		// the instruction in E is a load
+    input IsMul_E,		// the instruction in E is a multiply: like a load, its result is ready in W
     input Busy,			// MCycle is working on the instruction in E
     input Redirect_E,		// E found the next PC was predicted wrongly (or jalr / mret)
     // M and W stages
@@ -99,7 +101,8 @@ module HazardUnit #(
                  ( (UsesRs1_D && (rs1_D == rd_M)) || (UsesRs2_D && (rs2_D == rd_M)) ) ;
 
     // Load-use: the loaded value only exists at the end of M, too late to forward into E.
-    wire lwStall    = (HAZARD_UNIT != 0) && MemtoReg_E && dep_E ;
+    // The same holds for a multiply, whose product is finished by the end of M.
+    wire lwStall    = (HAZARD_UNIT != 0) && (MemtoReg_E || IsMul_E) && dep_E ;
     // No-forwarding mode: wait until the producer has reached W.
     wire nofwdStall = (HAZARD_UNIT != 0) && NoForward && (dep_E || dep_M) ;
 

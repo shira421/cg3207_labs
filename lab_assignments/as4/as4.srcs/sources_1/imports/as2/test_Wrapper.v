@@ -1,19 +1,22 @@
 `timescale 1ns / 1ps
 /*
 ----------------------------------------------------------------------------------
- test_Wrapper.v - Assignment 4 testbench for the Breakout demo (AA_IROM.mem / AA_DMEM.mem from
- sw/demo/breakout.c). Uses the Wrapper's ports only, so the same testbench works for
+ test_Wrapper.v - Assignment 4 testbench for the fractal explorer demo (AA_IROM.mem / AA_DMEM.mem
+ from sw/demo/fractal.c). Uses the Wrapper's ports only, so the same testbench works for
  behavioural simulation and for post-synthesis simulation (synthesise Wrapper as the top).
 
- What it does (about 800 000 cycles = 8 ms of simulated time; use Run All):
-   1. Autoplay (SW14), all enhancements on: runs 4 frames.
-   2. SW1:SW0 = 11 (no forwarding, no branch prediction): runs 4 frames.
-   3. Presses BTNC (interrupt) to pause the game, runs 5 frames.
- Every frame it prints the 7-segment value (cycles the CPU took to compute and draw that frame,
- in decimal), the LEDs, and the number of pixels written, and at the end checks that
-   - every frame wrote all 96 x 64 pixels,
-   - the CPU with its enhancements took fewer cycles per frame than without,
-   - the interrupt paused the game (LED7 on).
+ What it does (about 6.5 million cycles = 65 ms of simulated time; use Run All):
+   1. All enhancements on: 2 frames of the Mandelbrot set.
+   2. SW3 on (plain RV32IM: mul + mulh + shifts instead of mulsr): 2 frames.
+   3. SW3 off, BTNC pressed (interrupt): the program switches to the Julia set (LED7 on), 2 frames.
+ Every frame it prints the 7-segment value (cycles the CPU took to compute the previous frame,
+ in decimal), the LEDs, the pixels written and how many of them are not black, and at the end
+ checks that
+   - every frame wrote all 96 x 64 pixels, and the picture is not blank,
+   - mulsr made the frame faster than the plain RV32IM multiply sequence,
+   - the interrupt switched to the Julia set (LED7 on).
+ (The slow-multiplier switch, SW2, is ~10x slower: about 9 million cycles per frame, so it is
+ left out here. sim/run_tests.py checks it in every test.)
 
  AI assistance declaration (CG3207 lab manual): written with Claude (Anthropic), Claude Opus 5.5, Nov 2026.
 ----------------------------------------------------------------------------------
@@ -25,7 +28,7 @@ module test_Wrapper #(
 )
 (
 );
-	reg  [N_DIPs-1:0] DIP = 16'h4000;	// SW14 autoplay
+	reg  [N_DIPs-1:0] DIP = 16'h0000;	// everything on, 32 iterations, 7-seg = cycles per frame
 	reg  [N_PBs-1:0] PB = 0;
 	wire [N_LEDs_OUT-1:0] LED_OUT;
 	wire [6:0] LED_PC;
@@ -42,7 +45,7 @@ module test_Wrapper #(
 	wire [23:0] OLED_Data;
 	wire OLED_Swap;
 	reg  OLED_SwapPending = 0;		// modelled below: high for a while after each present
-	reg  [31:0] ACCEL_Data = 32'h1A000040;
+	reg  [31:0] ACCEL_Data = 32'h1A000040;	// board flat: X = Y = 0, Z = +1 g
 	reg  ACCEL_DReady = 1;
 	reg  RESET = 1;
 	reg  CLK = 0;
@@ -60,8 +63,8 @@ module test_Wrapper #(
 
 	always #5 CLK = ~CLK;			// 100 MHz
 
-	integer frame = 0, pixels = 0, swap_timer = 0, errors = 0;
-	integer cyc_on = 0, cyc_off = 0;
+	integer frame = 0, pixels = 0, lit = 0, swap_timer = 0, errors = 0;
+	integer cyc_mulsr = 0, cyc_plain = 0;
 
 	// 7-segment shows BCD; convert to an integer for the checks
 	function integer bcd;
@@ -75,8 +78,10 @@ module test_Wrapper #(
 	endfunction
 
 	always @(negedge CLK) begin
-		if (OLED_Write)
+		if (OLED_Write) begin
 			pixels = pixels + 1;
+			if (OLED_Data != 24'd0) lit = lit + 1;
+		end
 		if (OLED_Swap) begin
 			OLED_SwapPending <= 1;
 			swap_timer = 200;
@@ -89,38 +94,43 @@ module test_Wrapper #(
 
 	// One line per frame. SEVENSEG is written right after the present, so look a little later.
 	always @(posedge OLED_Swap) begin
-		repeat (100) @(posedge CLK);
+		repeat (300) @(posedge CLK);
 		frame = frame + 1;
-		$display("frame %2d  SW=%h  7-seg %8h  LED %b  pixels %0d", frame, DIP, SEVENSEGHEX, LED_OUT, pixels);
+		$display("frame %0d  SW=%h  7-seg %8h  LED %b  pixels %0d (%0d not black)", frame, DIP, SEVENSEGHEX, LED_OUT, pixels, lit);
 		// frame 1 has one extra pixel (main() arms auto-advance with one write)
 		if (frame > 1 && pixels != 96 * 64) begin
 			$display("   ERROR: expected %0d pixels in a frame", 96 * 64);
 			errors = errors + 1;
 		end
-		if (frame == 4) cyc_on = bcd(SEVENSEGHEX);
-		if (frame == 8) cyc_off = bcd(SEVENSEGHEX);
+		if (lit < 1000) begin
+			$display("   ERROR: the frame is (nearly) blank");
+			errors = errors + 1;
+		end
+		if (frame == 2) cyc_mulsr = bcd(SEVENSEGHEX);	// frame 2's own cycle count is shown after its present
+		if (frame == 4) cyc_plain = bcd(SEVENSEGHEX);
 		pixels = 0;
+		lit = 0;
 	end
 
 	initial begin
 		#105 RESET = 0;
+		wait (frame == 2);
+		DIP = 16'h0008;				// SW3: plain RV32IM multiply code
 		wait (frame == 4);
-		DIP = 16'h4003;				// switch forwarding and branch prediction off
-		wait (frame == 8);
-		DIP = 16'h4000;
-		PB = 3'b010;				// press BTNC: interrupt -> pause
+		DIP = 16'h0000;
+		PB = 3'b010;				// press BTNC: interrupt -> Julia set
 		repeat (200000) @(posedge CLK);	// long enough for the button sampling (2^16 cycles)
 		PB = 3'b000;
-		wait (frame == 13);
+		wait (frame == 6);
 		$display("");
-		$display("cycles per frame: %0d with the enhancements, %0d without (%0d%% more)",
-		         cyc_on, cyc_off, (cyc_off - cyc_on) * 100 / cyc_on);
-		if (!(cyc_on > 0 && cyc_on < cyc_off)) begin
-			$display("ERROR: the enhancements did not reduce the cycles per frame");
+		$display("cycles per frame: %0d with mulsr, %0d with mul + mulh + shifts (%0d%% more)",
+		         cyc_mulsr, cyc_plain, (cyc_plain - cyc_mulsr) * 100 / cyc_mulsr);
+		if (!(cyc_mulsr > 0 && cyc_mulsr < cyc_plain)) begin
+			$display("ERROR: mulsr did not make the frame faster");
 			errors = errors + 1;
 		end
 		if (!LED_OUT[7]) begin
-			$display("ERROR: BTNC did not pause the game (LED7 off)");
+			$display("ERROR: BTNC did not switch to the Julia set (LED7 off)");
 			errors = errors + 1;
 		end
 		if (errors == 0) $display("PASS");

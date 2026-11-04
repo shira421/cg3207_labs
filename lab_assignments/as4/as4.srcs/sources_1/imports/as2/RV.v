@@ -18,7 +18,7 @@
 -- Revision 0.02 - Assignment 2: single-cycle datapath for RV32I (except byte/half-word load/store)
 -- Revision 0.03 - Assignment 3: MCycle unit for RV32M (mul, mulh, mulhu, div, divu, rem, remu), stalling while Busy
 -- Revision 0.04 - Assignment 4: 5-stage pipeline (F D E M W), hazard unit, branch prediction,
---                 byte/half-word load/store, interrupts
+--                 byte/half-word load/store, interrupts, pipelined multiplier + mulsr
 -- Additional Comments: The interface SHOULD NOT be modified (except making output reg) unless you modify Wrapper.v/vhd too.
                         The implementation can be modified.
                         Assignment 4 adds the Interrupt and CpuCtrl inputs; Wrapper.v was changed to match.
@@ -44,6 +44,12 @@
 --	 BTB lookup    Decoder      PC_Logic          DMEM / MMIO     LoadExtend
 --	               RegFile      branch resolve    StoreAlign
 --	               Extend       BTB update
+--	                            PipeMulE:         PipeMulM:
+--	                            Booth + CSA  ->   CSA + add + select -> MulResult_W
+--
+--	Multiplies (mul, mulh, mulhu, mulsr) go down the pipelined multiplier in E and M, one per
+--	cycle, and their result is ready in W like a load's. Division (and multiplies in the
+--	slow-multiplier mode, CPU_CTRL[2]) still use the MCycle unit, which stalls the pipeline.
 --
 --	Every signal carries the suffix of the stage it belongs to. A signal that moves on to the
 --	next stage goes through one pipeline register (an always @(posedge CLK) block below),
@@ -75,7 +81,8 @@ module RV #(
     input CLK,
     input RESET,
     input Interrupt,			// level, from Wrapper. Taken when the CPU is not already in the handler.
-    input [1:0] CpuCtrl,		// runtime switches from Wrapper (MMIO CPU_CTRL): [0] no forwarding, [1] no branch prediction
+    input [2:0] CpuCtrl,		// runtime switches from Wrapper (MMIO CPU_CTRL): [0] no forwarding, [1] no branch prediction,
+    					// [2] slow multiplier (multiplies on the Assignment 3 MCycle unit, 33 cycles, stalling)
     input [31:0] Instr,
     input [31:0] ReadData_in,       // Name mangled to support lb/lbu/lh/lhu
     output MemRead,
@@ -94,9 +101,11 @@ module RV #(
     localparam OP_JAL    = 7'b1101111 ;
     localparam OP_LUI    = 7'b0110111 ;
     localparam OP_AUIPC  = 7'b0010111 ;
+    localparam OP_CUSTOM0 = 7'b0001011 ;	// mulsr
 
     wire NoForward  = CpuCtrl[0] ;
     wire NoPredict  = CpuCtrl[1] ;
+    wire SlowMul    = CpuCtrl[2] ;
 
     //==================================================================
     // Hazard unit signals
@@ -187,13 +196,16 @@ module RV #(
     wire [1:0] MCycleOp_D ;
     wire MCycleSel_D, MResultSel_D ;
     wire Mret_D ;
+    wire IsMul_D ;
+    wire [5:0] MulShift_D ;
     wire [31:0] ExtImm_D ;
     wire [31:0] RD1_D, RD2_D ;
 
     // Which register fields are real source registers (so that, e.g., the immediate bits of an
     // addi that happen to equal rd of an earlier instruction do not cause a needless stall)
     wire UsesRs1_D = !( (Opcode_D == OP_LUI) || (Opcode_D == OP_AUIPC) || (Opcode_D == OP_JAL) ) ;
-    wire UsesRs2_D = (Opcode_D == OP_DPREG) || (Opcode_D == OP_STORE) || (Opcode_D == OP_BRANCH) ;
+    wire UsesRs2_D = (Opcode_D == OP_DPREG) || (Opcode_D == OP_STORE) || (Opcode_D == OP_BRANCH) ||
+                     (Opcode_D == OP_CUSTOM0) ;
 
     Decoder Decoder1(
                     Opcode_D,
@@ -211,7 +223,9 @@ module RV #(
                     MCycleOp_D,
                     MCycleSel_D,
                     MResultSel_D,
-                    Mret_D
+                    Mret_D,
+                    IsMul_D,
+                    MulShift_D
                 );
 
     Extend Extend1(
@@ -255,6 +269,9 @@ module RV #(
     reg        PredTaken_E = 1'b0 ;
     reg        Valid_E = 1'b0 ;
     reg        NoForward_E = 1'b0 ;	// CPU_CTRL[0] when this instruction was in D
+    reg        IsMul_E = 1'b0 ;
+    reg [5:0]  MulShift_E = 6'd0 ;
+    reg        SlowMul_E = 1'b0 ;	// CPU_CTRL[2] when this instruction was in D
 
     always@(posedge CLK) begin
         if( RESET || (FlushE && !StallE) ) begin
@@ -266,6 +283,7 @@ module RV #(
             MStart_E     <= 1'b0 ;
             MCycleSel_E  <= 1'b0 ;
             Mret_E       <= 1'b0 ;
+            IsMul_E      <= 1'b0 ;
             PredTaken_E  <= 1'b0 ;
             Valid_E      <= 1'b0 ;
             rs1_E        <= 5'd0 ;
@@ -297,6 +315,9 @@ module RV #(
             PredTaken_E  <= PredTaken_D ;
             Valid_E      <= Valid_D ;
             NoForward_E  <= NoForward ;
+            IsMul_E      <= IsMul_D ;
+            MulShift_E   <= MulShift_D ;
+            SlowMul_E    <= SlowMul ;
         end
     end
 
@@ -352,11 +373,13 @@ module RV #(
                 );
 
     // MCycle takes its operands (after forwarding) in its first cycle, and the pipeline holds
-    // the instruction in E until Busy falls.
+    // the instruction in E until Busy falls. It does division, and multiplication only in the
+    // slow-multiplier mode; otherwise multiplies go down the pipelined multiplier below.
+    wire MCycleStart_E = MStart_E && (!IsMul_E || SlowMul_E) ;
     MCycle #(.width(32)) MCycle1(
                     .CLK(CLK),
                     .RESET(RESET),
-                    .Start(MStart_E),
+                    .Start(MCycleStart_E),
                     .MCycleOp(MCycleOp_E),
                     .Operand1(FwdA_E),
                     .Operand2(FwdB_E),
@@ -366,6 +389,27 @@ module RV #(
                 );
 
     assign ExecResult_E = MCycleSel_E ? (MResultSel_E ? MCycleResult2_E : MCycleResult1_E) : ALUResult_E ;
+
+    //------------------------------------------------------------------
+    // Pipelined multiplier, first half: Booth partial products + carry-save tree -> 4 rows.
+    // In the slow-multiplier mode the rows are just MCycle's 64-bit product (and zeros), so the
+    // second half (CSA, add, select) works the same either way.
+    //------------------------------------------------------------------
+    wire [63:0] MulRow0_E, MulRow1_E, MulRow2_E, MulRow3_E ;
+    wire [63:0] BoothRow0_E, BoothRow1_E, BoothRow2_E, BoothRow3_E ;
+    PipeMulE PipeMulE1(
+                    .A(FwdA_E),
+                    .B(FwdB_E),
+                    .Signed(~MCycleOp_E[0]),	// 00 signed (mul, mulh, mulsr), 01 unsigned (mulhu)
+                    .R0(BoothRow0_E),
+                    .R1(BoothRow1_E),
+                    .R2(BoothRow2_E),
+                    .R3(BoothRow3_E)
+                );
+    assign MulRow0_E = SlowMul_E ? {MCycleResult2_E, MCycleResult1_E} : BoothRow0_E ;
+    assign MulRow1_E = SlowMul_E ? 64'd0 : BoothRow1_E ;
+    assign MulRow2_E = SlowMul_E ? 64'd0 : BoothRow2_E ;
+    assign MulRow3_E = SlowMul_E ? 64'd0 : BoothRow3_E ;
 
     //------------------------------------------------------------------
     // Branch resolution
@@ -438,6 +482,9 @@ module RV #(
     reg [2:0]  Funct3_M = 3'b000 ;
     reg [31:0] WriteData_M = 32'd0 ;
     reg [4:0]  rd_M = 5'd0 ;
+    reg        IsMul_M = 1'b0 ;
+    reg [5:0]  MulShift_M = 6'd0 ;
+    reg [63:0] MulRow0_M = 64'd0, MulRow1_M = 64'd0, MulRow2_M = 64'd0, MulRow3_M = 64'd0 ;
     initial ExecResult_M = 32'd0 ;
 
     always@(posedge CLK) begin
@@ -446,8 +493,15 @@ module RV #(
             MemWrite_M   <= 1'b0 ;
             MemtoReg_M   <= 1'b0 ;
             rd_M         <= 5'd0 ;
+            IsMul_M      <= 1'b0 ;
         end
         else begin
+            IsMul_M      <= IsMul_E ;
+            MulShift_M   <= MulShift_E ;
+            MulRow0_M    <= MulRow0_E ;
+            MulRow1_M    <= MulRow1_E ;
+            MulRow2_M    <= MulRow2_E ;
+            MulRow3_M    <= MulRow3_E ;
             RegWrite_M   <= RegWrite_E ;
             MemWrite_M   <= MemWrite_E ;
             MemtoReg_M   <= MemtoReg_E ;
@@ -463,6 +517,17 @@ module RV #(
     //==================================================================
     assign ALUResult = ExecResult_M ;		// data memory / MMIO address
     assign MemRead   = MemtoReg_M ;		// This is needed for the proper functionality of some devices such as UART CONSOLE
+
+    // Pipelined multiplier, second half: CSA, the 64-bit add, and the 32-bit window [k+31:k]
+    wire [31:0] MulResult_M ;
+    PipeMulM PipeMulM1(
+                    .R0(MulRow0_M),
+                    .R1(MulRow1_M),
+                    .R2(MulRow2_M),
+                    .R3(MulRow3_M),
+                    .K(MulShift_M),
+                    .Result(MulResult_M)
+                );
 
     StoreAlign StoreAlign1(
                     .MemWrite(MemWrite_M),
@@ -481,14 +546,19 @@ module RV #(
     reg [31:0] ExecResult_W = 32'd0 ;
     reg [31:0] ReadDataRaw_W = 32'd0 ;	// the whole word read from memory
     reg [4:0]  rd_W = 5'd0 ;
+    reg        IsMul_W = 1'b0 ;
+    reg [31:0] MulResult_W = 32'd0 ;
 
     always@(posedge CLK) begin
         if( RESET ) begin
             RegWrite_W   <= 1'b0 ;
             MemtoReg_W   <= 1'b0 ;
             rd_W         <= 5'd0 ;
+            IsMul_W      <= 1'b0 ;
         end
         else begin
+            IsMul_W       <= IsMul_M ;
+            MulResult_W   <= MulResult_M ;
             RegWrite_W    <= RegWrite_M ;
             MemtoReg_W    <= MemtoReg_M ;
             Funct3_W      <= Funct3_M ;
@@ -502,6 +572,7 @@ module RV #(
     // W stage
     //==================================================================
     wire [31:0] ReadData_W ;
+    reg  [31:0] Result_W_r ;
 
     LoadExtend LoadExtend1(
                     .Funct3(Funct3_W),
@@ -510,7 +581,15 @@ module RV #(
                     .ReadData(ReadData_W)
                 );
 
-    assign Result_W = MemtoReg_W ? ReadData_W : ExecResult_W ;
+    always@(*) begin
+        if( MemtoReg_W )
+            Result_W_r = ReadData_W ;
+        else if( IsMul_W )
+            Result_W_r = MulResult_W ;
+        else
+            Result_W_r = ExecResult_W ;
+    end
+    assign Result_W = Result_W_r ;
     assign RegWrite_W_wire = RegWrite_W ;
     assign rd_W_wire = rd_W ;
 
@@ -527,6 +606,7 @@ module RV #(
                     .rd_E(rd_E),
                     .RegWrite_E(RegWrite_E),
                     .MemtoReg_E(MemtoReg_E),
+                    .IsMul_E(IsMul_E),
                     .Busy(Busy),
                     .Redirect_E(Redirect_E),
                     .rd_M(rd_M),

@@ -18,14 +18,14 @@ SRC = os.path.join(HERE, 'as4.srcs', 'sources_1', 'imports', 'as2')
 
 FILES = [
     # RTL created or modified for Assignment 4 (and earlier assignments' modules the CPU uses)
-    (SRC, ['RV.v', 'HazardUnit.v', 'BranchPredictor.v', 'LoadStore.v', 'Decoder.v', 'RegFile.v', 'Wrapper.v',
+    (SRC, ['RV.v', 'HazardUnit.v', 'BranchPredictor.v', 'LoadStore.v', 'PipeMul.v', 'Decoder.v', 'RegFile.v', 'Wrapper.v',
            'ALU.v', 'Shifter.v', 'Extend.v', 'PC_Logic.v', 'ProgramCounter.v', 'MCycle.v',
            'TOP_Nexys.vhd', 'pmodoledrgb_bitmap.vhd',
            'test_Wrapper.v', 'test_MCycle.v', 'AA_IROM.mem', 'AA_DMEM.mem']),
     (os.path.join(HERE, 'sim'), ['tb_cpu.v']),
     # program
-    (os.path.join(HERE, 'sw', 'demo'), ['breakout.c']),
-    (os.path.join(HERE, 'sw', 'build'), ['breakout.s']),
+    (os.path.join(HERE, 'sw', 'demo'), ['fractal.c', 'fractal_tables.h']),
+    (os.path.join(HERE, 'sw', 'build'), ['fractal.s']),
     (os.path.join(HERE, 'sw'), ['crt0.s']),
     # slides
     (HERE, ['Lab4_Slides.pptx']),

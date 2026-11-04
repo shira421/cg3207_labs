@@ -37,7 +37,7 @@ DMEM_BYTES = 4096          # DMEM_DEPTH_BITS = 12
 SUPPORTED = set('''
 lui auipc jal jalr beq bne blt bge bltu bgeu lb lh lw lbu lhu sb sh sw
 addi slti sltiu xori ori andi slli srli srai add sub sll slt sltu xor srl sra or and
-mul mulh mulhu div divu rem remu mret
+mul mulh mulhu div divu rem remu mret mulsr
 nop li mv not neg seqz snez sltz sgtz beqz bnez blez bgez bltz bgtz bgt ble bgtu bleu j jr ret call tail
 '''.split())
 
@@ -98,6 +98,10 @@ def main():
     bad = {}
     for line in lst.splitlines():
         m = re.match(r'\s*[0-9a-f]+:\s+[0-9a-f]{8}\s+(\S+)', line)
+        if m and m.group(1) == '.insn':                 # custom-0: mulsr (funct3 000, funct7 = k < 32)
+            w = int(re.search(r':\s+([0-9a-f]{8})', line).group(1), 16)
+            if (w & 0x7F) == 0x0B and ((w >> 12) & 7) == 0 and (w >> 25) < 32:
+                continue
         if m and m.group(1) not in SUPPORTED:
             bad.setdefault(m.group(1), line.strip())
     syms = run([PREFIX + 'nm', elf])

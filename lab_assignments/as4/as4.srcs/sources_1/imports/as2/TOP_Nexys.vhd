@@ -30,6 +30,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_unsigned.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use ieee.math_real.exp;
+library UNISIM;					-- Assignment 4: MMCM / BUFG / BUFGCE clocking primitives
+use UNISIM.VComponents.all;
 
 ----------------------------------------------------------------
 -- TOP level module interface
@@ -38,7 +40,7 @@ entity TOP is
 		Generic 
 		(
 			constant N_LEDs_OUT	: integer := 8; -- Number of writeable LEDs - LED(N_LEDs_OUT-1 downto 0). 8 by default
-			-- LED(N_LEDs_OUT) showing the divided clock. 
+			-- LED(N_LEDs_OUT) blinking while the CPU clock runs (Assignment 4; was the divided clock itself). 
 			-- LED(15 downto N_LEDs_OUT+1) showing the PC.
 			constant N_DIPs		: integer := 16;  -- Number of DIPs. 16 by default
 			constant N_PBs		: integer := 3;  -- Number of PushButtons. 3 by default
@@ -82,7 +84,20 @@ architecture arch_TOP of TOP is
 ----------------------------------------------------------------
 -- TOP Constants
 ----------------------------------------------------------------
-constant CLK_DIV_BITS : integer := 5; 	-- Set this to 26 for a ~1Hz clock. 0 for a 100MHz clock. Should not exceed 26. 
+----------------------------------------------------------------
+-- Assignment 4: CPU clock.
+--   USE_MMCM = true  : the CPU clock is 100 MHz / CPU_CLK_DIV (1..12), made by an MMCM, so Vivado
+--                      knows it and TIMES every path in the CPU. This is how to find the max frequency:
+--                      after implementation, Design Timing Summary must show WNS >= 0.
+--                      All the 100 MHz logic (OLED, UART, accelerometer, 7-seg) runs on a second MMCM
+--                      output, so the two clocks are related and the crossings between them are timed too.
+--   USE_MMCM = false : the template's divider below (CLK_DIV_BITS). The divided clock comes out of a
+--                      flip-flop, which Vivado does NOT treat as a clock: nothing in the CPU is timed,
+--                      so "no timing warning" means nothing for CLK_DIV_BITS >= 1.
+----------------------------------------------------------------
+constant USE_MMCM    : boolean := true;
+constant CPU_CLK_DIV : integer := 4;	-- CPU clock = 100 MHz / CPU_CLK_DIV: 1 = 100, 2 = 50, 3 = 33.3, 4 = 25 MHz, ... 12 = 8.3 MHz
+constant CLK_DIV_BITS : integer := 5; 	-- (USE_MMCM = false only) Set this to 26 for a ~1Hz clock. 0 for a 100MHz clock. Should not exceed 26. 
 										-- There is no need to change it for simulation, as this entity/module should not be simulated
 										-- If this is set to less than 17, you might need a software delay loop between successive reads / writes to/from UART.
 
@@ -145,7 +160,13 @@ signal pix_data_out 		: STD_LOGIC_VECTOR(15 downto 0); -- not used in wrapper fo
 signal ACCEL_Data 			: STD_LOGIC_VECTOR(31 downto 0);
 signal ACCEL_DReady 		: STD_LOGIC;
 
-signal	CLK					: STD_LOGIC;
+signal	CLK					: STD_LOGIC;	-- CPU clock (Wrapper)
+signal	CLK100				: STD_LOGIC;	-- 100 MHz for the peripherals (OLED, UART, accelerometer, 7-seg)
+signal	mmcm_locked			: STD_LOGIC := '0';
+signal	por_count			: unsigned(19 downto 0) := (others => '0');	-- power-on reset, ~10 ms at 100 MHz
+signal	por_active			: STD_LOGIC := '1';
+signal	pause_sync			: STD_LOGIC_VECTOR(1 downto 0) := "00";
+signal	heartbeat			: unsigned(25 downto 0) := (others => '0');
 
 ----------------------------------------------------------------------------
 -- UART Constants
@@ -198,7 +219,7 @@ signal UART_TX_valid_prev : std_logic := '0';
 signal UART_RX_ack_prev : std_logic := '0';
 signal uart_data_out_stb_prev: std_logic := '0'; 
 
-signal RESET_INT, RESET_EFF : STD_LOGIC; 	-- internal and effective reset, for future use.
+signal RESET_INT, RESET_EFF : STD_LOGIC; 	-- internal (power-on) and effective reset
 signal RESET_EXT	: std_logic; 			-- internal reset
 
 ----------------------------------------------------------------
@@ -290,7 +311,7 @@ begin
 -- Debug LEDs
 ----------------------------------------------------------------			
 LED(15 downto N_LEDs_OUT+1) <= LED_PC; 	-- PC on LED(15 downto 9)
-LED(N_LEDs_OUT) 			<= CLK; 	-- clock on LED(8)
+LED(N_LEDs_OUT) 			<= heartbeat(heartbeat'high - CPU_CLK_DIV/2) when USE_MMCM else CLK; 	-- LED(8): blinks while the CPU clock runs
 LED(N_LEDs_OUT-1 downto 0) 	<= LED_OUT;	-- LED(7 downto 0) Memory-mapped writeable by the processor
 
 ----------------------------------------------------------------
@@ -299,7 +320,35 @@ LED(N_LEDs_OUT-1 downto 0) 	<= LED_OUT;	-- LED(7 downto 0) Memory-mapped writeab
 -- RESET_EXT <= not RESET; 				-- CPU_RESET (red button) is active low.
 RESET_EXT <= RESET; 					-- BTNU, active high.  
 RESET_EFF <= RESET_INT or RESET_EXT; 	-- Reset sent to the Wrapper
-RESET_INT <= '0'; 						-- internal reset, for future use.	
+----------------------------------------------------------------
+-- Assignment 4: power-on reset.
+-- Holds the CPU and the OLED controller in reset for ~10 ms after the FPGA is configured (and after the
+-- MMCM locks). Without it, nothing resets the OLED controller unless BTND is pressed: its state
+-- register has no reset value of its own, so whether the panel ever gets its start-up commands
+-- after programming depended on how synthesis encoded that state machine.
+----------------------------------------------------------------
+POR_PROCESS : process(CLK100)
+begin
+	if rising_edge(CLK100) then
+		if mmcm_locked = '0' then
+			por_count  <= (others => '0');
+			por_active <= '1';
+		elsif por_active = '1' then
+			por_count <= por_count + 1;
+			if por_count = (por_count'range => '1') then
+				por_active <= '0';
+			end if;
+		end if;
+	end if;
+end process;
+RESET_INT <= por_active;
+
+HEARTBEAT_PROCESS : process(CLK)
+begin
+	if rising_edge(CLK) then
+		heartbeat <= heartbeat + 1;
+	end if;
+end process;
 
 ----------------------------------------------------------------
 -- Accelerometer data aggregation
@@ -352,8 +401,8 @@ generic map (
         GREYSCALE => False,		-- color or greyscale ? (only for BPP>6)
         LEFT_SIDE => False)		-- True if the Pmod is on the left side of the board
 port map (
-		clk         	=>	CLK_undiv       ,	
-        reset       	=>	reset   		,    
+		clk         	=>	CLK100          ,	
+        reset       	=>	RESET_EFF		,	-- Assignment 4: power-on reset or BTND (was BTND only)
         pix_write   	=> 	pix_write   	,
         pix_col     	=> 	pix_col     	,
         pix_row     	=> 	pix_row     	,
@@ -383,8 +432,8 @@ generic map
 )
 port map
 (
-   SYSCLK => CLK_undiv,
-   RESET => RESET_EXT,
+   SYSCLK => CLK100,
+   RESET => RESET_EFF,		-- Assignment 4: power-on reset or BTND (was BTND only)
    ACCEL_X => ACCEL_Data_X,
    ACCEL_Y => ACCEL_Data_Y,
    ACCEL_Z => ACCEL_Data_Z,
@@ -405,8 +454,8 @@ generic map (
 		CLOCK_FREQUENCY     => CLOCK_FREQUENCY
 )
 port map (  
-		CLOCK		        => CLK_undiv,
-		RESET               => RESET_EXT,
+		CLOCK		        => CLK100,
+		RESET               => RESET_EFF,	-- Assignment 4: power-on reset or BTND
 		DATA_STREAM_IN      => uart_data_in,
 		DATA_STREAM_IN_STB  => uart_data_in_stb,
 		DATA_STREAM_IN_ACK  => uart_data_in_ack,
@@ -420,11 +469,11 @@ port map (
 ----------------------------------------------------------------
 -- UART
 ----------------------------------------------------------------
-UART_Process: process (CLK_undiv)
+UART_Process: process (CLK100)
 begin
-if CLK_undiv'event and CLK_undiv = '1' then
+if CLK100'event and CLK100 = '1' then
 
-   if RESET_EXT = '1' then
+   if RESET_EFF = '1' then
 		uart_data_in_stb        <= '0';
 		uart_data_out_ack       <= '0';
 		uart_data_in            <= (others => '0');
@@ -483,7 +532,7 @@ end process;
 ----------------------------------------------------------------
 -- Seven Segment Display
 ----------------------------------------------------------------
-SEVENSEG_DISPLAY_PROCESS : process(CLK_undiv)
+SEVENSEG_DISPLAY_PROCESS : process(CLK100)
 type MEM_16x7 is array (0 to 15) of std_logic_vector (6 downto 0); -- Memory type declaration (Character map for 7-Seg)
 constant SevenSegHexMap : MEM_16x7 := ("0111111", "0000110", "1011011", "1001111", "1100110", "1101101", "1111101", "0000111", "1111111", "1100111", "1110111", "1111100", "0111001", "1011110", "1111001", "1110001"); 
 -- SevenSeg display cathode bits (active low)
@@ -498,7 +547,7 @@ constant SevenSegHexMap : MEM_16x7 := ("0111111", "0000110", "1011011", "1001111
 variable sevenseg_counter : std_logic_vector(18 downto 0) := (others => '0');
 variable indices : integer := 0;
 begin
-	if CLK_undiv'event and CLK_undiv = '1' then
+	if CLK100'event and CLK100 = '1' then
 		sevenseg_counter := sevenseg_counter+1;
 		indices := conv_integer(sevenseg_counter(18 downto 16) & "00");
 		SevenSegCat <= not(SevenSegHexMap(conv_integer(SevenSegHex(indices+3 downto indices))));
@@ -508,22 +557,64 @@ begin
 end process;
 	
 ----------------------------------------------------------------
--- Clock divider
+-- Clocks
 ----------------------------------------------------------------
-CLK_DIVIDER_OFF_SET: if CLK_DIV_BITS = 0 generate 
-	CLK <= CLK_undiv;
-end generate;
-CLK_DIVIDER_ON_SET: if CLK_DIV_BITS > 0 generate
-CLK_DIV_PROCESS : process(CLK_undiv)						-- Clock division
-variable clk_counter : std_logic_vector(CLK_DIV_BITS-1 downto 0) := (others => '0');
+MMCM_ON: if USE_MMCM generate
+	signal clkfb, clkfb_buf, clk_cpu_mmcm, clk_100_mmcm, locked_i, cpu_ce : STD_LOGIC;
 begin
-	if CLK_undiv'event and CLK_undiv = '1' then
-		if PAUSE = '0' then
-			clk_counter := clk_counter+1;
-			CLK <= clk_counter(CLK_DIV_BITS-1);
+	-- VCO = 100 MHz * 10 = 1 GHz. CLKOUT0 = CPU clock, CLKOUT1 = 100 MHz for the peripherals.
+	-- Feedback through a BUFG, so both outputs are aligned with the input clock.
+	MMCM1 : MMCME2_BASE
+	generic map (
+		BANDWIDTH          => "OPTIMIZED",
+		CLKIN1_PERIOD      => 10.0,
+		CLKFBOUT_MULT_F    => 10.0,
+		DIVCLK_DIVIDE      => 1,
+		CLKOUT0_DIVIDE_F   => real(10 * CPU_CLK_DIV),
+		CLKOUT1_DIVIDE     => 10,
+		STARTUP_WAIT       => FALSE)
+	port map (
+		CLKIN1   => CLK_undiv,
+		CLKFBIN  => clkfb_buf,
+		CLKFBOUT => clkfb,
+		CLKOUT0  => clk_cpu_mmcm,
+		CLKOUT1  => clk_100_mmcm,
+		LOCKED   => locked_i,
+		PWRDWN   => '0',
+		RST      => '0');
+	FB_BUFG   : BUFG port map (I => clkfb, O => clkfb_buf);
+	CLK100_BUFG : BUFG port map (I => clk_100_mmcm, O => CLK100);
+	-- BTNU (PAUSE) stops the CPU clock glitch-free
+	PAUSE_SYNC_PROCESS : process(CLK100)
+	begin
+		if rising_edge(CLK100) then
+			pause_sync <= pause_sync(0) & PAUSE;
 		end if;
-	end if;
-end process;
+	end process;
+	cpu_ce <= not pause_sync(1);
+	CPU_BUFGCE : BUFGCE port map (I => clk_cpu_mmcm, CE => cpu_ce, O => CLK);
+	mmcm_locked <= locked_i;
+end generate;
+
+MMCM_OFF: if not USE_MMCM generate
+	CLK100 <= CLK_undiv;
+	mmcm_locked <= '1';
+
+	CLK_DIVIDER_OFF_SET: if CLK_DIV_BITS = 0 generate 
+		CLK <= CLK_undiv;
+	end generate;
+	CLK_DIVIDER_ON_SET: if CLK_DIV_BITS > 0 generate
+	CLK_DIV_PROCESS : process(CLK_undiv)						-- Clock division
+	variable clk_counter : std_logic_vector(CLK_DIV_BITS-1 downto 0) := (others => '0');
+	begin
+		if CLK_undiv'event and CLK_undiv = '1' then
+			if PAUSE = '0' then
+				clk_counter := clk_counter+1;
+				CLK <= clk_counter(CLK_DIV_BITS-1);
+			end if;
+		end if;
+	end process;
+	end generate;
 end generate;
 
 end arch_TOP;

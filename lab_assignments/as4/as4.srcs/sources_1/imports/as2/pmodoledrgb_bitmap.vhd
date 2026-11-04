@@ -91,7 +91,7 @@ architecture Behavioral of PmodOLEDrgb_bitmap is
    -- this is just to get proper integer dimension...
    constant max_wait : integer := CLK_FREQ_HZ /10;
    
-   signal wait_cnt                  : integer range 0 to max_wait-1;    -- the counter for waiting states
+   signal wait_cnt                  : integer range 0 to max_wait-1 := 0; -- the counter for waiting states
 
 
    -- the FSM that controls communication to the Pmod
@@ -127,16 +127,18 @@ architecture Behavioral of PmodOLEDrgb_bitmap is
                        prep_w_disp_ok,    -- 1 clock cycle to prepare the long wait just after
                        w_disp_ok,
                        refreshing);       -- system is idle and ready
-   signal OLED_FSM : t_OLED_FSM;
+   -- CG3207 Assignment 4: explicit initial state. Without it the state register's power-up value was
+   -- left to synthesis, and the panel only started if reset was pressed after programming.
+   signal OLED_FSM : t_OLED_FSM := waking;
 
 
 
    --------------------------------------------------------------------------
    -- signals to manage SPI interface
    --------------------------------------------------------------------------
-   signal spi_sck       : std_logic;                     -- local copy of the clock
+   signal spi_sck       : std_logic := '0';              -- local copy of the clock
    signal spi_shift_reg : std_logic_vector(15 downto 0); -- the output shift register
-   signal spi_rem_bits  : integer range 0 to 15;         -- the number of remaining shifts before next data
+   signal spi_rem_bits  : integer range 0 to 15 := 15;   -- the number of remaining shifts before next data
 
    signal spi_send_ack  : boolean;                       -- True when the spi sending is over
    signal spi_active    : boolean;                       -- True when a spi transfer is active
@@ -159,7 +161,7 @@ architecture Behavioral of PmodOLEDrgb_bitmap is
    -- a warning rather than a silent timing failure.
    attribute ram_style : string;
    attribute ram_style of bitmap : signal is "block";
-   signal read_addr     : integer range 0 to 6143;       -- the read address to send data to the Pmod
+   signal read_addr     : integer range 0 to 6143 := 0;  -- the read address to send data to the Pmod
    signal user_addr     : std_logic_vector(12 downto 0); -- the user address computed from row/column
    signal front_page    : std_logic := '0';              -- page being scanned out
    signal back_page     : std_logic := '0';              -- page being drawn into
