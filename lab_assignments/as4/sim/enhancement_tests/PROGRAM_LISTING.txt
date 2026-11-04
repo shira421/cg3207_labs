@@ -1,0 +1,77 @@
+00400000  0200006f  [entry] j main
+00400004  2fc0006f  [vector] j isr
+00400020  00500093  [pipeline / forwarding] addi x1,x0,5
+00400024  00700113  [pipeline / forwarding] addi x2,x0,7
+00400028  00900193  [pipeline / forwarding] addi x3,x0,9
+0040002c  00b00213  [pipeline / forwarding] addi x4,x0,11
+00400030  00d00293  [pipeline / forwarding] addi x5,x0,13
+00400034  00128333  [pipeline / forwarding] add x6,x5,x1
+00400038  01500393  [pipeline / forwarding] addi x7,x0,21
+0040003c  00000013  [pipeline / forwarding] nop
+00400040  00000013  [pipeline / forwarding] nop
+00400044  00138413  [pipeline / forwarding] addi x8,x7,1 # W-to-D write-through
+00400048  0180006f  [pipeline / forwarding] j multiply
+00400060  02208533  [pipelined multiply] mul x10,x1,x2
+00400064  024185b3  [pipelined multiply] mul x11,x3,x4
+00400068  02628633  [pipelined multiply] mul x12,x5,x6
+0040006c  0220868b  [pipelined multiply] mulsr x13,x1,x2,1
+00400070  00168713  [pipelined multiply] addi x14,x13,1 # multiply-use stall
+00400074  02c0006f  [pipelined multiply] j fixed_point
+004000a0  ff900793  [mulsr / signed and unsigned] addi x15,x0,-7
+004000a4  00500813  [mulsr / signed and unsigned] addi x16,x0,5
+004000a8  0307888b  [mulsr / signed and unsigned] mulsr x17,x15,x16,1
+004000ac  030783b3  [mulsr / signed and unsigned] mul x7,x15,x16
+004000b0  03079433  [mulsr / signed and unsigned] mulh x8,x15,x16
+004000b4  0013d393  [mulsr / signed and unsigned] srli x7,x7,1
+004000b8  01f41413  [mulsr / signed and unsigned] slli x8,x8,31
+004000bc  0083e4b3  [mulsr / signed and unsigned] or x9,x7,x8 # same signed shifted product
+004000c0  03079cb3  [mulsr / signed and unsigned] mulh x25,x15,x16
+004000c4  0307bd33  [mulsr / signed and unsigned] mulhu x26,x15,x16
+004000c8  0107838b  [mulsr / signed and unsigned] mulsr x7,x15,x16,0
+004000cc  3f07840b  [mulsr / signed and unsigned] mulsr x8,x15,x16,31
+004000d0  0300006f  [mulsr / signed and unsigned] j memory
+00400100  08000913  [byte/halfword / load-use] addi x18,x0,128
+00400104  01200023  [byte/halfword / load-use] sb x18,0(x0)
+00400108  08100913  [byte/halfword / load-use] addi x18,x0,129
+0040010c  012000a3  [byte/halfword / load-use] sb x18,1(x0)
+00400110  08200913  [byte/halfword / load-use] addi x18,x0,130
+00400114  01200123  [byte/halfword / load-use] sb x18,2(x0)
+00400118  08300913  [byte/halfword / load-use] addi x18,x0,131
+0040011c  012001a3  [byte/halfword / load-use] sb x18,3(x0)
+00400120  eed00913  [byte/halfword / load-use] addi x18,x0,-275 # 0xfffffeed
+00400124  01201023  [byte/halfword / load-use] sh x18,0(x0)
+00400128  000081b7  [byte/halfword / load-use] lui x3,0x8 # temporary 0x8000
+0040012c  00118193  [byte/halfword / load-use] addi x3,x3,1
+00400130  00301123  [byte/halfword / load-use] sh x3,2(x0)
+00400134  00000903  [byte/halfword / load-use] lb x18,0(x0)
+00400138  01202223  [byte/halfword / load-use] sw x18,4(x0) # captures signed byte
+0040013c  00004903  [byte/halfword / load-use] lbu x18,0(x0)
+00400140  01202423  [byte/halfword / load-use] sw x18,8(x0)
+00400144  00001903  [byte/halfword / load-use] lh x18,0(x0)
+00400148  01202623  [byte/halfword / load-use] sw x18,12(x0)
+0040014c  00005903  [byte/halfword / load-use] lhu x18,0(x0)
+00400150  01202823  [byte/halfword / load-use] sw x18,16(x0)
+00400154  00002903  [byte/halfword / load-use] lw x18,0(x0)
+00400158  00190993  [byte/halfword / load-use] addi x19,x18,1 # load-use
+0040015c  0240006f  [byte/halfword / load-use] j branch_test
+00400180  00000a13  [branch prediction] addi x20,x0,0
+00400184  00800a93  [branch prediction] addi x21,x0,8
+00400188  001a0a13  [branch prediction] loop: addi x20,x20,1
+0040018c  ff5a4ee3  [branch prediction] blt x20,x21,loop # T T T T T T T N
+00400190  00c0006f  [branch prediction] j branch_done
+00400194  06300d93  [branch prediction] WRONG PATH: addi x27,x0,99
+00400198  00102a23  [branch prediction] WRONG PATH: sw x1,20(x0)
+0040019c  02a00b13  [branch prediction] branch_done: addi x22,x0,42
+004001a0  0600006f  [branch prediction] j interrupt_test
+00400200  00000b93  [interrupt / precise return] addi x23,x0,0
+00400204  00600c13  [interrupt / precise return] addi x24,x0,6
+00400208  001b8b93  [interrupt / precise return] resume_loop: addi x23,x23,1
+0040020c  00000013  [interrupt / precise return] nop # IRQ asserted when this reaches D
+00400210  00000013  [interrupt / precise return] nop
+00400214  ff8bcae3  [interrupt / precise return] blt x23,x24,resume_loop
+00400218  0480006f  [interrupt / precise return] j finish
+00400260  02254eb3  [MCycle retained / finish] div x29,x10,x2 # 35/7=5
+00400264  001e8f13  [MCycle retained / finish] addi x30,x29,1
+00400268  07b00f93  [MCycle retained / finish] addi x31,x0,123 # done marker
+00400300  001e0e13  [interrupt handler] addi x28,x28,1
+00400304  30200073  [interrupt handler] mret
