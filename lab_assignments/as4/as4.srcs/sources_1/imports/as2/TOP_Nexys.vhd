@@ -113,6 +113,8 @@ component Wrapper is
 			OLED_Col      		: out  STD_LOGIC_VECTOR(6 downto 0);
 			OLED_Row      		: out  STD_LOGIC_VECTOR(5 downto 0);
 			OLED_Data	  		: out  STD_LOGIC_VECTOR(23 downto 0);
+			OLED_Swap			: out  STD_LOGIC;	-- v2: present the drawn page (missing from the course template's component)
+			OLED_SwapPending	: in   STD_LOGIC;	-- v2: high until the swap and its copy are done
 			ACCEL_Data 			: in STD_LOGIC_VECTOR (31 downto 0);
 			ACCEL_DReady		: in STD_LOGIC;			
 			RESET				: in  STD_LOGIC;
