@@ -166,7 +166,7 @@ static void controls(unsigned int dip, unsigned int pb)
 {
     unsigned int a = ACCEL;             /* <temp, X, Y, Z> */
     int tx = tilt(a >> 16, accel_level >> 16), ty = tilt(a >> 8, accel_level >> 8);
-    if (dip & 0x1000) { tx = -tx; ty = -ty; }
+    if (!(dip & 0x1000)) { tx = -tx; ty = -ty; }   /* direction checked on the board; SW12 reverses it */
     int *s = julia ? &julia_step : &step;
 
     if (julia) {                        /* tilt steers the Julia constant: the set morphs */

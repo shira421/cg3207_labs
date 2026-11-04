@@ -129,7 +129,7 @@ main:
 	addi	a2,a2,-6
 .L13:
 	slli	a6,a1,19
-	bge	a6,zero,.L15
+	blt	a6,zero,.L15
 	neg	a4,a4
 	neg	a2,a2
 .L15:
@@ -295,21 +295,21 @@ main:
 	sw	a2,12(a5)
 	li	t4,50331648
 	ble	a4,t4,.L19
-.L96:
+.L93:
 	sw	t4,0(a3)
 	j	.L20
 .L19:
 	li	t4,-83886080
-	blt	a4,t4,.L96
+	blt	a4,t4,.L93
 .L20:
 	li	a4,50331648
 	ble	a2,a4,.L21
-.L97:
+.L94:
 	sw	a4,12(a5)
 	j	.L18
 .L21:
 	li	a4,-50331648
-	blt	a2,a4,.L97
+	blt	a2,a4,.L94
 	j	.L18
 .L25:
 	lw	t2,8(a3)

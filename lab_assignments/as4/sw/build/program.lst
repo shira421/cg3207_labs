@@ -143,7 +143,7 @@ Disassembly of section .text:
   4001fc:	20c35c63          	bge	t1,a2,400414 <main+0x354>
   400200:	ffa60613          	addi	a2,a2,-6
   400204:	01359813          	slli	a6,a1,0x13
-  400208:	00085663          	bgez	a6,400214 <main+0x154>
+  400208:	00084663          	bltz	a6,400214 <main+0x154>
   40020c:	40e00733          	neg	a4,a4
   400210:	40c00633          	neg	a2,a2
   400214:	0007ae83          	lw	t4,0(a5)
