@@ -274,7 +274,11 @@ module RV #(
     reg        SlowMul_E = 1'b0 ;	// CPU_CTRL[2] when this instruction was in D
 
     always@(posedge CLK) begin
-        if( RESET || (FlushE && !StallE) ) begin
+        // A bubble also when D itself holds a bubble (Valid_D = 0): it is a NOP anyway, and this way
+        // E never takes the Decoder's outputs before the Decoder has evaluated once. (In simulation an
+        // always @(*) block only runs when an input changes, so right after reset, with Instr_D still
+        // the NOP it started as, the decode outputs would be x for a cycle. Real hardware is unaffected.)
+        if( RESET || (FlushE && !StallE) || (!Valid_D && !StallE) ) begin
             // A bubble: nothing that changes state. (The data fields do not matter.)
             PCS_E        <= 2'b00 ;
             RegWrite_E   <= 1'b0 ;
