@@ -100,7 +100,8 @@ localparam PB_OFF  				= 8'h68; //RO
 localparam SEVENSEG_OFF 		= 8'h80; //WO
 localparam CYCLECOUNT_OFF 		= 8'hA0; //RO
 // Assignment 4
-localparam CPU_CTRL_OFF 		= 8'h70; //WO, [0] 1 = no forwarding (interlock instead), [1] 1 = no branch prediction. 0 after reset.
+localparam CPU_CTRL_OFF 		= 8'h70; //WO, [0] 1 = no forwarding (interlock instead), [1] 1 = no branch prediction,
+                                        //    [2] 1 = slow multiplier (Assignment 3 MCycle, 33 cycles). 0 after reset.
 localparam INT_EN_OFF 			= 8'h74; //WO, [2:0] enables the interrupt for BTNL, BTNC, BTNR presses
 localparam INT_FLAGS_OFF 		= 8'h78; //RW, [2:0] a press of BTNL, BTNC, BTNR is pending. Write 1s to clear (acknowledge) them.
                                       
@@ -122,7 +123,7 @@ reg bad_MEM_addr;	// bad data memory address. Can be used as interrupt
 wire MemWrite;		// overall MemWrite
 
 // Assignment 4
-reg [1:0] cpu_ctrl = 2'b00;		// CPU_CTRL register, into RV
+reg [2:0] cpu_ctrl = 3'b000;		// CPU_CTRL register, into RV
 reg [N_PBs-1:0] int_flags = 0;	// pending push-button presses
 reg Interrupt = 1'b0;			// into RV
 
@@ -491,9 +492,9 @@ end
 // (everything enabled).
 always@(posedge CLK) begin
 	if (RESET)
-		cpu_ctrl <= 2'b00;
+		cpu_ctrl <= 3'b000;
 	else if (MemWrite_out[0] && dec_CPU_CTRL)
-		cpu_ctrl <= WriteData_out[1:0];
+		cpu_ctrl <= WriteData_out[2:0];
 end
 
 // Push buttons -> interrupt. The buttons bounce and are asynchronous, so they are synchronised,

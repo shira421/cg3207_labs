@@ -150,6 +150,8 @@ class ISS:
                 else: res = int(abs(sa) % abs(sb) * (-1 if sa < 0 else 1)) & M32
             elif f3 == 7: res = a if b == 0 else a % b
             # f3 == 2 (mulhsu) is not implemented in the CPU: a NOP
+        elif op == 0x0B and f3 == 0 and f7 < 32:      # mulsr rd, rs1, rs2, k = (rs1 * rs2) >> k, signed
+            res = ((sx(a, 32) * sx(b, 32)) >> f7) & M32
         elif op == 0x73 and ins == 0x30200073:
             npc = self.epc
         # anything else: NOP, as the Decoder does

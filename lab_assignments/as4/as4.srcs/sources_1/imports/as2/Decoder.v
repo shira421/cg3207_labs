@@ -37,6 +37,10 @@
 --	         widened ALUSrcB to 2 bits for the jal/jalr link value (PC + 4).
 --	Assignment 3: added MStart, MCycleOp, MCycleSel and MResultSel for the RV32M instructions
 --	         (opcode 0110011, funct7 0000001). mulhsu (funct3 010) is not supported and decodes as a NOP.
+--	Assignment 4: added Mret (return from interrupt, 0x30200073), IsMul / MulShift for the pipelined
+--	         multiplier, and the custom instruction mulsr rd, rs1, rs2, k (custom-0 opcode 0001011,
+--	         funct3 000, funct7 = k): rd = (rs1 * rs2) >> k, signed, 0 <= k <= 31 (fixed-point multiply).
+--	         Loads/stores of every size decode the same here; RV.v carries Funct3 as the size.
 ----------------------------------------------------------------------------------
 */
 
@@ -58,7 +62,9 @@ module Decoder(
     output reg [1:0] MCycleOp,	// 00 signed multiply, 01 unsigned multiply, 10 signed divide, 11 unsigned divide
     output reg MCycleSel,	// Register write data comes from MCycle instead of the ALU
     output reg MResultSel,	// 0: MCycle Result1 (low word of product / quotient), 1: Result2 (high word / remainder)
-    output reg Mret		// mret: return from the interrupt handler to EPC (Assignment 4)
+    output reg Mret,		// mret: return from the interrupt handler to EPC (Assignment 4)
+    output reg IsMul,		// a multiply (mul, mulh, mulhu, mulsr): goes down the pipelined multiplier (Assignment 4)
+    output reg [5:0] MulShift	// which 32 bits of the 64-bit product: mul 0, mulh/mulhu 32, mulsr k
     );
 // Change wire to reg if assigned inside a procedural (always) block. However, where it is easy enough, use assign instead of always.
 // A 2-1 multiplexing can be done easily using an assign with a ternary operator
@@ -74,6 +80,7 @@ module Decoder(
 	localparam OP_JALR   = 7'b1100111 ;	// jalr
 	localparam OP_LUI    = 7'b0110111 ;	// lui
 	localparam OP_AUIPC  = 7'b0010111 ;	// auipc
+	localparam OP_CUSTOM0 = 7'b0001011 ;	// mulsr (Assignment 4)
 	localparam OP_SYSTEM = 7'b1110011 ;	// mret (the only SYSTEM instruction supported)
 	localparam FUNCT7_MRET = 7'b0011000 ;	// mret = 0011000 00010 00000 000 00000 1110011
 
@@ -96,6 +103,8 @@ module Decoder(
 		MCycleSel  = 1'b0 ;
 		MResultSel = 1'b0 ;
 		Mret       = 1'b0 ;
+		IsMul      = 1'b0 ;
+		MulShift   = 6'd0 ;
 
 		case(Opcode)
 			OP_DPREG: begin
@@ -112,9 +121,11 @@ module Decoder(
 						default: ;							// mulhsu (signed x unsigned): not supported
 					endcase
 					if( Funct3 != 3'b010 ) begin	// mulhsu stays a NOP
-						RegWrite  = 1'b1 ;	// RV.v only lets the write through once MCycle is no longer Busy
-						MStart    = 1'b1 ;
+						RegWrite  = 1'b1 ;
+						MStart    = 1'b1 ;	// division always, multiply only in slow-multiplier mode (RV.v)
 						MCycleSel = 1'b1 ;
+						IsMul     = ~Funct3[2] ;			// 000 mul, 001 mulh, 011 mulhu
+						MulShift  = (Funct3[1:0] == 2'b00) ? 6'd0 : 6'd32 ;	// low or high word
 					end
 				end
 				else begin			// rd = rs1 op rs2
@@ -171,6 +182,16 @@ module Decoder(
 				ALUSrcA    = 2'b10 ;			// PC
 				ALUSrcB    = 2'b01 ;
 				ImmSrc     = 3'b000 ;			// U-type
+			end
+			OP_CUSTOM0: begin	// mulsr rd, rs1, rs2, k : rd = (rs1 * rs2) >> k, signed
+				if( Funct3 == 3'b000 && Funct7[6:5] == 2'b00 ) begin
+					RegWrite  = 1'b1 ;
+					MStart    = 1'b1 ;
+					MCycleOp  = 2'b00 ;			// signed x signed
+					MCycleSel = 1'b1 ;
+					IsMul     = 1'b1 ;
+					MulShift  = {1'b0, Funct7[4:0]} ;
+				end
 			end
 			OP_SYSTEM: begin	// mret: PC = EPC. RV.v treats it as a jump that is never predicted.
 				if( Funct3 == 3'b000 && Funct7 == FUNCT7_MRET )

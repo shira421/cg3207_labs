@@ -11,8 +11,9 @@ byte enables, data) must match exactly.
   python3 run_tests.py --keep          keep the work folders (waveform-free, but with all logs)
 
 CPU modes (CPU_CTRL, forced by the testbench):
-  0 everything on   1 no forwarding   2 no branch prediction   3 neither
+  0 everything on   1 no forwarding   2 no branch prediction   3 neither   4 slow multiplier   7 all off
   toggle: CPU_CTRL changed at random every few cycles while the program runs
+  prog:   CPU_CTRL left to the program, which writes it now and then (just before multiplies)
   plus the HAZARD_UNIT = 0 pipeline (compulsory task), with every program padded with nops.
 
 Random programs (fuzz.py) mix every implemented instruction, dependent chains, load-use pairs,
@@ -36,8 +37,13 @@ sys.path.insert(0, HERE)
 import iss            # noqa: E402
 import fuzz           # noqa: E402
 
-RTL = ['Wrapper.v', 'RV.v', 'HazardUnit.v', 'BranchPredictor.v', 'LoadStore.v', 'ALU.v', 'Shifter.v',
+RTL = ['Wrapper.v', 'RV.v', 'HazardUnit.v', 'BranchPredictor.v', 'LoadStore.v', 'PipeMul.v', 'ALU.v', 'Shifter.v',
        'Decoder.v', 'Extend.v', 'PC_Logic.v', 'RegFile.v', 'ProgramCounter.v', 'MCycle.v']
+
+
+# CPU_CTRL values every program is run with: [0] no forwarding, [1] no branch prediction, [2] slow multiplier
+MODES = [0, 1, 2, 3, 4, 7]
+MODE_NAMES = {0: 'all on', 1: 'no fwd', 2: 'no BP', 3: 'no fwd+BP', 4: 'slow mul', 7: 'all off'}
 
 
 def sh(cmd, cwd=None):
@@ -87,9 +93,11 @@ def compare(d, ref, dmem_words=None, skip_mmio=()):
             if len(errs) > 12:
                 break
     log = []
+    def hx(t):                                   # x / z in the simulation: never equal to anything
+        return int(t, 16) if not set(t) & set('xXzZ') else -1
     for l in open(os.path.join(d, 'mmio.txt')):
         a, m, v = l.split()
-        log.append((int(a, 16), int(m, 16), int(v, 16)))
+        log.append((hx(a), hx(m), hx(v)))
     log = [e for e in log if e[0] not in skip_mmio]
     if log != ref.mmio_log:
         for k, (x, y) in enumerate(zip(log + [None] * len(ref.mmio_log), ref.mmio_log + [None] * len(log))):
@@ -110,11 +118,17 @@ def check(name, src_dir, vvps, modes, max_steps, results):
         plus = ['+max=%d' % (ref.cycles * 45 + 2000), '+haltpc=%08x' % ref.pc]
         if mode == 'toggle':
             plus.append('+toggle')
+        elif mode == 'prog':                     # CPU_CTRL only as the program writes it
+            pass
         elif mode != 'nohazard':
             plus.append('+cpuctrl=%d' % mode)
-        st = run_rtl(vvp, src_dir, plus)
-        errs = [] if st['halted'] else ['did not halt in %d cycles' % st['cycles']]
-        errs += compare(src_dir, ref)
+        try:
+            st = run_rtl(vvp, src_dir, plus)
+            errs = [] if st['halted'] else ['did not halt in %d cycles' % st['cycles']]
+            errs += compare(src_dir, ref)
+        except Exception as e:                   # a crash in the harness counts as a failure
+            results.append(('%s [mode %s]' % (name, mode), 'harness error: %r' % e))
+            continue
         if errs:
             results.append(('%s [mode %s]' % (name, mode), '; '.join(errs[:6])))
         stats_all[mode] = st
@@ -143,12 +157,21 @@ def check_irq(seed, work, vvps, results):
         for t in presses:
             f.write('%d %d\n%d 0\n' % (t, 1 << rnd.randrange(3), t + 12 + rnd.randrange(20)))
     buf_words = fuzz.BUF // 4
-    for mode in (0, 1, 2, 3, 'toggle'):
-        st = run_rtl(vvps['normal'], d, ['+max=%d' % (ref.cycles * 60 + 5000), '+haltpc=%08x' % ref.pc,
-                                          '+toggle' if mode == 'toggle' else '+cpuctrl=%d' % mode, '+pb=pb.txt'])
-        errs = [] if st['halted'] else ['did not halt']
-        errs += compare(d, ref, dmem_words=buf_words, skip_mmio=(0xFFFF0078,))
-        count = int(open(os.path.join(d, 'dmem.txt')).read().split()[buf_words], 16)
+    for mode in MODES + ['toggle', 'prog']:
+        plus = ['+max=%d' % (ref.cycles * 60 + 5000), '+haltpc=%08x' % ref.pc, '+pb=pb.txt']
+        if mode == 'toggle':
+            plus.append('+toggle')
+        elif mode != 'prog':
+            plus.append('+cpuctrl=%d' % mode)
+        try:
+            st = run_rtl(vvps['normal'], d, plus)
+            errs = [] if st['halted'] else ['did not halt']
+            errs += compare(d, ref, dmem_words=buf_words, skip_mmio=(0xFFFF0078,))
+            w = open(os.path.join(d, 'dmem.txt')).read().split()[buf_words]
+            count = int(w, 16) if not set(w) & set('xXzZ') else -1
+        except Exception as e:
+            results.append(('irq seed %d [mode %s]' % (seed, mode), 'harness error: %r' % e))
+            continue
         if count != len(presses) or st['interrupts'] != len(presses):
             errs.append('%d presses, handler ran %d times, %d interrupts taken' % (len(presses), count, st['interrupts']))
         if errs:
@@ -177,10 +200,10 @@ def main():
             continue
         d = os.path.join(work, name)
         build(src, d)
-        st = check(name, d, vvps, [0, 1, 2, 3], 200000, results)
+        st = check(name, d, vvps, MODES, 200000, results)
         if st:
-            print('%-24s cycles: all on %6d | no fwd %6d | no BP %6d | neither %6d   (%d instructions)' %
-                  (name, st[0]['cycles'], st[1]['cycles'], st[2]['cycles'], st[3]['cycles'], st[0]['instructions']))
+            print('%-20s cycles: ' % name + ' | '.join('%s %d' % (MODE_NAMES[m], st[m]['cycles']) for m in MODES) +
+                  '   (%d instructions)' % st[0]['instructions'])
         padded = os.path.join(work, name + '_nops.s')
         open(padded, 'w').write(fuzz.pad_with_nops(open(src).read()))
         d2 = os.path.join(work, name + '_nops')
@@ -212,10 +235,10 @@ def main():
                 except RuntimeError as e:      # 4x longer with the nops: may not fit in IROM
                     if 'overflowed' not in str(e):
                         raise
-            st = check('fuzz seed %d' % seed, d, vvps, [0, 1, 2, 3, 'toggle'], 200000, results)
+            st = check('fuzz seed %d' % seed, d, vvps, MODES + ['toggle', 'prog'], 200000, results)
             if st:
                 for m, s in st.items():
-                    if m == 'toggle':
+                    if not isinstance(m, int):          # toggle / prog: no fixed mode
                         continue
                     t = totals.setdefault(m, [0, 0])
                     t[0] += s['cycles']
@@ -227,7 +250,7 @@ def main():
                 print('  %d random programs done, %d failures so far' % (k + 1, len(results)))
         if totals:
             print('Random programs, CPI: ' + ', '.join(
-                '%s %.3f' % ({0: 'all on', 1: 'no fwd', 2: 'no BP', 3: 'neither'}[m], c / max(i, 1))
+                '%s %.3f' % (MODE_NAMES[m], c / max(i, 1))
                 for m, (c, i) in sorted(totals.items())))
 
     print()
