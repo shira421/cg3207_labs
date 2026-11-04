@@ -96,8 +96,8 @@ architecture arch_TOP of TOP is
 --                      so "no timing warning" means nothing for CLK_DIV_BITS >= 1.
 ----------------------------------------------------------------
 constant USE_MMCM    : boolean := true;
-constant CPU_CLK_DIV : integer := 4;	-- CPU clock = 100 MHz / CPU_CLK_DIV: 1 = 100, 2 = 50, 3 = 33.3, 4 = 25 MHz, ... 12 = 8.3 MHz
-constant CLK_DIV_BITS : integer := 5; 	-- (USE_MMCM = false only) Set this to 26 for a ~1Hz clock. 0 for a 100MHz clock. Should not exceed 26. 
+constant CPU_CLK_DIV : integer := 2;	-- CPU clock = 100 MHz / CPU_CLK_DIV: 1 = 100, 2 = 50, 3 = 33.3, 4 = 25 MHz, ... 12 = 8.3 MHz
+constant CLK_DIV_BITS : integer := 1; 	-- (USE_MMCM = false only) Set this to 26 for a ~1Hz clock. 0 for a 100MHz clock. Should not exceed 26. 
 										-- There is no need to change it for simulation, as this entity/module should not be simulated
 										-- If this is set to less than 17, you might need a software delay loop between successive reads / writes to/from UART.
 
