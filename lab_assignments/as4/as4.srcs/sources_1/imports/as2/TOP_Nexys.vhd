@@ -167,6 +167,8 @@ signal	por_count			: unsigned(19 downto 0) := (others => '0');	-- power-on reset
 signal	por_active			: STD_LOGIC := '1';
 signal	pause_sync			: STD_LOGIC_VECTOR(1 downto 0) := "00";
 signal	heartbeat			: unsigned(25 downto 0) := (others => '0');
+signal	cpu_reset_sync		: STD_LOGIC_VECTOR(1 downto 0) := "11";	-- RESET_EFF, synchronised to the CPU clock
+signal	RESET_CPU			: STD_LOGIC;
 
 ----------------------------------------------------------------------------
 -- UART Constants
@@ -343,6 +345,18 @@ begin
 end process;
 RESET_INT <= por_active;
 
+-- The CPU's reset, synchronised to the CPU clock. RESET_EFF comes from the 100 MHz domain (power-on
+-- reset) and from a button; going straight into the CPU, it would be a 100 MHz -> CPU-clock crossing
+-- with only 10 ns to reach hundreds of registers, whatever the CPU frequency. Two flip-flops on CLK
+-- make the long fan-out an ordinary CPU-clock path.
+CPU_RESET_SYNC_PROCESS : process(CLK)
+begin
+	if rising_edge(CLK) then
+		cpu_reset_sync <= cpu_reset_sync(0) & RESET_EFF;
+	end if;
+end process;
+RESET_CPU <= cpu_reset_sync(1);
+
 HEARTBEAT_PROCESS : process(CLK)
 begin
 	if rising_edge(CLK) then
@@ -387,7 +401,7 @@ port map (
 		OLED_SwapPending	=> 		pix_swap_pending,
 		ACCEL_Data			=> 		ACCEL_Data		,
 		ACCEL_DReady		=> 		ACCEL_DReady	,
-		RESET			 	=>     	RESET_EFF		,
+		RESET			 	=>     	RESET_CPU		,	-- Assignment 4: synchronised to CLK
 		CLK				 	=>     	CLK	
 );
 
