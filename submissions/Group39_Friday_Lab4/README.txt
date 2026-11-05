@@ -77,6 +77,3 @@ instead of per frame. BTND: reset.
 Cycles per frame (96 x 64, 32 iterations), same program, switches flipped live:
   everything on 953,584 | no forwarding 1,449,056 (1.5x) | no prediction 1,154,544 (1.2x)
   no mulsr 1,967,776 (2.1x) | A3 multiplier 8,862,960 (9.3x) | all four off 18,880,880 (19.8x)
-
-AI assistance: Claude (Anthropic), Claude Opus 5.5, used for the RTL changes, the demo program,
-the testbenches and the build/test scripts (see the README.md in lab_assignments/as4).
