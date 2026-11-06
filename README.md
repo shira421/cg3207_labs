@@ -112,11 +112,3 @@ cd sw && python3 build.py demo/fractal.c         # rebuild the demo's AA_IROM.me
 **The figures** in this README are drawn by [`docs/tools`](docs/tools):
 `render_frames.py` (fractal frames and GIFs from the demo program), `make_figures.py` (charts, and
 waveforms from a VCD of the enhancement testbench) and `datapath_svg.py` (the block diagram).
-
-## Credits
-
-Course templates (Wrapper, TOP, peripherals, OLED controller, Assignment 1 modules) are from the NUS
-CG3207 teaching team. Hin Lok designed the radix-2 Booth multiplier and its visualisation in Assignment 3;
-Qi Ye wrote the division dataflow walkthrough. As the lab manual asks, AI assistance (Claude, by Anthropic)
-is declared where it was used: in the assignment READMEs, the file headers and the Assignment 3 prompt
-history.
