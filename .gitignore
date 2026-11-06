@@ -23,3 +23,7 @@ desktop.ini
 *.vvp
 *.vcd
 *.wdb
+
+# Python
+__pycache__/
+*.pyc

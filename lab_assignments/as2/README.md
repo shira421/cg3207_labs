@@ -1,7 +1,9 @@
-# Assignment 2 — Basic CPU design (Week 7 demo)
+# Assignment 2: single-cycle CPU (Week 7 demo)
 
-Single-cycle RISC-V (RV32I) processor on the Nexys 4 DDR. This folder is the project exactly as it
-was demoed (commit `43888ac`); keep it unchanged. Assignment 3 continues in a copy of it, `../as3`.
+Single-cycle RISC-V (RV32I) processor on the Nexys 4 DDR. Every instruction finishes in one clock:
+fetch, decode, register read, ALU, memory and write-back all happen in the same cycle. This folder is the
+project exactly as it was demoed (commit `43888ac`). Assignment 3 continues in a copy of it (`../as3`), and
+Assignment 4 pipelines it (`../as4`).
 
 Open `as2.xpr` in Vivado.
 

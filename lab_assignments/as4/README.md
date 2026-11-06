@@ -1,4 +1,4 @@
-# Assignment 4 — Pipelining + enhancements (Week 12 demo)
+# Assignment 4: pipelining and enhancements (Week 12 demo)
 
 **A pipelined RISC-V that flies through fractals.** A 5-stage pipeline with a fully pipelined fixed-point
 multiply unit renders the Mandelbrot and Julia sets on the Pmod OLED in real time. You tilt the board to
@@ -6,44 +6,57 @@ fly around, press buttons to zoom, and press BTNC to dive into the Julia set of 
 Every enhancement can be switched off **while it runs** from the DIP switches, so the same program on
 the same bitstream shows what each one is worth.
 
+<p align="center">
+  <img src="../../docs/media/mandelbrot_zoom.gif" width="384" alt="Zooming into seahorse valley">
+  <img src="../../docs/media/julia_orbit.gif" width="384" alt="Julia set morphing as c moves">
+  <br><sub>Frames produced by the demo program (<code>sw/demo/fractal.c</code>), exactly as it runs on the board:
+  rendered on the reference model from the same <code>AA_IROM.mem</code>, pixel-identical to the RTL simulation.</sub>
+</p>
+
 This is its own Vivado project (`as4.xpr`), started as a copy of `../as3`, which stays as it was demoed.
 The sources are in `as4.srcs/sources_1/imports/as2/`.
 
-## Status
+## Results
 
-| Part | What was done | Verified | Still to do (Vivado / board) |
-|---|---|---|---|
-| Compulsory: pipelining | 5-stage pipeline F/D/E/M/W, runs everything from A2 + A3 | The **unmodified A3 program** still gives LED = 0xFF; 1000 random programs match a reference model; the `HAZARD_UNIT = 0` build (program padded with nops) matches too | Report the max frequency (MMCM, below) |
-| **Enh. 1: pipelined multiplier** | Radix-4 Booth + carry-save tree across E and M, one multiply per cycle, result ready like a load's. Replaces the 33-cycle MCycle for mul/mulh/mulhu (division stays on MCycle) | 202 366 vectors on the unit alone; all random programs; planted bugs caught | — |
-| **Enh. 2: `mulsr` instruction** | `mulsr rd, rs1, rs2, k` = (rs1 × rs2) >> k, a fixed-point multiply in one instruction (custom-0 opcode) | Same | — |
-| Enh. 3: hazard unit | Forwarding (M→E, W→E), register-file write-through, load/multiply-use stall, flush on redirect, MCycle stall | Random programs in every mode; planted bugs caught | — |
-| Enh. 4: branch prediction | 32-entry BTB with 2-bit counters | Same | — |
-| Enh. 5: byte/half-word load/store | `lb lh lbu lhu sb sh` | Same | — |
-| Enh. 6: interrupts | Push-button interrupts, EPC, `mret`, precise | 60 random programs interrupted at random times | — |
-| Enh. 7: live A/B switches | `CPU_CTRL`: forwarding, branch prediction and the fast multiplier can each be switched off while running | Random programs with the switches flipped every few cycles | — |
-| Clocking | **MMCM** CPU clock (Vivado now times the CPU), power-on reset | Whole-chip simulation (below) | Read the timing report |
-| OLED | v2 double-buffered OLED + **fix for the blank screen** (below) | Whole-chip simulation with a model of the panel: correct frames with no reset pressed | Check on the board |
-| Demo | Fractal explorer in C (`sw/demo/fractal.c`) | Frames rendered from simulation; `test_Wrapper.v` prints PASS | Bitstream + board, post-synthesis simulation |
-| Slides | `Lab4_Slides.pptx` | — | Fill in max frequency / resources |
+| Part | What was done | How it was verified |
+|---|---|---|
+| Compulsory: pipelining | 5-stage pipeline F/D/E/M/W, runs everything from A2 + A3 | The **unmodified A3 program** still gives LED = 0xFF; 1000 random programs match a reference model; the `HAZARD_UNIT = 0` build (program padded with nops) matches too |
+| Compulsory: max frequency | CPU clock from an **MMCM**, so Vivado really times the CPU | **50 MHz, all constraints met, WNS +2.892 ns** (worst path ≈ 17.1 ns, so ≈ 58 MHz is the limit). 100 MHz does not meet timing |
+| **Enh. 1: pipelined multiplier** | Radix-4 Booth + carry-save tree across E and M, one multiply per cycle, result ready like a load's. Replaces the 33-cycle MCycle for mul/mulh/mulhu (division stays on MCycle) | 202 366 vectors on the unit alone; all random programs; planted bugs caught |
+| **Enh. 2: `mulsr` instruction** | `mulsr rd, rs1, rs2, k` = (rs1 × rs2) >> k, a fixed-point multiply in one instruction (custom-0 opcode) | Same |
+| Enh. 3: hazard unit | Forwarding (M→E, W→E), register-file write-through, load/multiply-use stall, flush on redirect, MCycle stall | Random programs in every mode; planted bugs caught |
+| Enh. 4: branch prediction | 32-entry BTB with 2-bit counters | Same; testbench loop: 2 redirects instead of 7 |
+| Enh. 5: byte/half-word load/store | `lb lh lbu lhu sb sh` | Same |
+| Enh. 6: interrupts | Push-button interrupts, EPC, `mret`, precise | 60 random programs interrupted at random times |
+| Enh. 7: live A/B switches | `CPU_CTRL`: forwarding, branch prediction and the fast multiplier can each be switched off while running | Random programs with the switches flipped every few cycles |
+| OLED | v2 double-buffered OLED + **fix for the blank screen** (below) | Whole-chip simulation with a model of the panel; then on the board |
+| Demo | Fractal explorer in C (`sw/demo/fractal.c`) | `test_Wrapper.v` prints PASS; demoed on the board in Week 12 |
+| Slides | The group deck, [`CG3207_Assignment4.pptx`](../../submissions/Group39_Friday_Lab4/CG3207_Assignment4.pptx) | — |
 
 ## The numbers
 
 Cycles to compute one fractal frame (96 × 64 pixels, up to 32 iterations each) for each switch setting.
 They come from simulation of the same program, which also shows them on the 7-segment display:
 
-| Switches | What is off | Cycles / frame | vs everything on | Frames/s at 25 MHz |
+| Switches | What is off | Cycles / frame | vs everything on | Frames/s at 50 MHz |
 |---|---|---|---|---|
-| 0000 | Everything on | 953,584 | 1.0× | 26.2 |
-| 0001 | SW0: no forwarding | 1,449,056 | 1.5× | 17.3 |
-| 0010 | SW1: no branch prediction | 1,154,544 | 1.2× | 21.7 |
-| 0011 | SW0+SW1 | 1,573,600 | 1.7× | 15.9 |
-| 1000 | SW3: no mulsr (mul+mulh+shifts) | 1,967,776 | 2.1× | 12.7 |
-| 0100 | SW2: A3 multiplier (MCycle) | 8,862,960 | 9.3× | 2.8 |
-| 0111 | SW2+SW1+SW0 | 9,400,592 | 9.9× | 2.7 |
-| 1100 | SW3+SW2 | 17,786,016 | 18.7× | 1.4 |
-| 1111 | All four off | 18,880,880 | 19.8× | 1.3 |
+| 0000 | Everything on | 953,584 | 1.0× | 52.4 |
+| 0001 | SW0: no forwarding | 1,449,056 | 1.5× | 34.5 |
+| 0010 | SW1: no branch prediction | 1,154,544 | 1.2× | 43.3 |
+| 0011 | SW0+SW1 | 1,573,600 | 1.7× | 31.8 |
+| 1000 | SW3: no mulsr (mul+mulh+shifts) | 1,967,776 | 2.1× | 25.4 |
+| 0100 | SW2: A3 multiplier (MCycle) | 8,862,960 | 9.3× | 5.6 |
+| 0111 | SW2+SW1+SW0 | 9,400,592 | 9.9× | 5.3 |
+| 1100 | SW3+SW2 | 17,786,016 | 18.7× | 2.8 |
+| 1111 | All four off | 18,880,880 | 19.8× | 2.6 |
 
 Measured on a 1/16 sample of the frame (every 4th pixel each way, same view) and scaled ×16; the full frame with everything on measured 929 099 cycles. With everything on that is 12 cycles per iteration (76 472 iterations), including the per-pixel work; the inner loop itself is 10 instructions, three of them multiplies. With the A3 multiplier: 116.
+
+![Cycles per frame for each switch setting](../../docs/media/performance.png)
+
+**CPI.** Over the first two frames with everything on, the RTL simulation retired 2,068,199 instructions
+in 2,100,000 cycles: **CPI 1.015**. Almost all of the 31,801 lost cycles are the 15,382 redirects
+(2 cycles each: loop exits the BTB mispredicts, and `jalr` returns); stalls cost 1,035. (Frames/s is the compute rate; the panel itself refreshes slower.)
 
 ---
 
@@ -81,33 +94,27 @@ does not treat a flip-flop output as a clock, so with `CLK_DIV_BITS` ≥ 1 **not
 no timing warning at 1, 2, … means nothing. Only `CLK_DIV_BITS = 0` was a real check.
 
 TOP now makes the CPU clock with an **MMCM** (`MMCME2_BASE`): `CPU clock = 100 MHz / CPU_CLK_DIV`. The
-default is 4 (25 MHz). The peripherals (OLED, UART, accelerometer, 7-seg) run on a second 100 MHz output
-of the same MMCM, so the two clocks are related and Vivado times the paths between them too. BTNU (pause)
+demo bitstream uses 2 (50 MHz). The peripherals (OLED, UART, accelerometer, 7-seg) run on a second 100 MHz output
+of the same MMCM, so the two clocks are related and Vivado times the paths between them too. The
+power-on reset comes from the 100 MHz side, so it goes through a 2-flip-flop synchroniser into the CPU
+clock domain (without it, that crossing was the worst path). BTNU (pause)
 still works (a `BUFGCE` stops the CPU clock), and LED8 now blinks slowly while the CPU clock runs.
 Setting `USE_MMCM = false` brings back the template's divider.
 
 The demo also takes the accelerometer reading at start-up as "level", so a sensor offset or an uneven table
 does not make the view drift.
 
-**Max frequency (compulsory):** set `CPU_CLK_DIV` to 1 (100 MHz), 2 (50), 3 (33.3), 4 (25) and run
-implementation each time. The smallest value with **WNS ≥ 0** in the Design Timing Summary (and no critical
-warning) is the max safe frequency. Report Timing Summary → the worst path shows what limits it (most likely
-in E: forwarding mux → ALU → branch decision → next-PC mux).
+**Max frequency (compulsory):** at `CPU_CLK_DIV = 2` (50 MHz) implementation meets every constraint with
+**WNS = +2.892 ns**. The worst path therefore needs about 20 − 2.9 = 17.1 ns, a limit of about **58 MHz**,
+and `CPU_CLK_DIV = 1` (100 MHz) fails. The long paths are in E: forwarding mux → ALU / branch decision →
+next-PC select and flush, and the multiplier's first half; IROM and DMEM are LUTRAM with an asynchronous
+read. Getting to 100 MHz would take block RAM with registered reads and more stages.
 
 ---
 
 ## How the pipeline works (walkthrough)
 
-```
-   F               D                E                    M                    W
- PC_F --IROM-->  Instr_D  -->   ALU / MCycle     -->  ExecResult_M    -->  Result_W --> RegFile
- BTB lookup      Decoder        PC_Logic              DMEM / MMIO          LoadExtend
-                 RegFile read   branch resolve        StoreAlign
-                 Extend         BTB update
-                                PipeMulE:             PipeMulM:
-                                Booth + 4 CSA levels  2 CSA levels + add   MulResult_W
-                                                      + select [k+31:k]
-```
+![Pipelined datapath](../../docs/media/pipeline_datapath.svg)
 
 Followed the lab's systematic procedure: every signal has a stage suffix (`_F _D _E _M _W`), and a signal
 that moves to the next stage goes through one pipeline register, e.g. `ExtImm_D -> ExtImm_E`. In `RV.v`
@@ -151,6 +158,15 @@ No `*` anywhere. The only `+` is the final carry-propagate adder (multiplication
 The fractal's inner loop (3 `mulsr` + 7 other instructions) runs with no stalls at all, because GCC puts
 each product's first user 2 or more instructions after it.
 
+From `tb_all_enhancements.v` (program `testbench_enhancements.asm`, lines 56 to 60). Three independent
+multiplies and a `mulsr` finish on consecutive cycles; the `addi` that needs x13 at once waits one cycle:
+
+![Pipelined multiplier waveform](../../docs/media/wave_multiplier.png)
+
+The same five instructions on the A3 multi-cycle unit (SW2) take 33 cycles each:
+
+![Pipelined vs multi-cycle multiplier](../../docs/media/wave_multiplier_vs_mcycle.png)
+
 **`mulsr rd, rs1, rs2, k`** (custom-0 opcode `0001011`, funct3 `000`, funct7 = k): rd = (rs1 × rs2) >> k,
 signed. In fixed point with k fraction bits this is "multiply", in **one** instruction. Plain RV32IM needs
 `mul` + `mulh` + `srli` + `slli` + `or` and two multiplies. Written in C as
@@ -176,6 +192,8 @@ The setting is latched per instruction, so flipping SW2 mid-multiply is safe.
 | Branch/jal mispredicted, jalr, mret | flush D and E | 2 cycles |
 | div (or mul in slow mode) in E, MCycle Busy | stall F, D, E; bubble into M | ~33 cycles |
 
+![Forwarding, load-use stall and mispredicted branch](../../docs/media/pipeline_timing.png)
+
 All comparisons are 5-bit register-number equalities, as the lab allows. `UsesRs1_D / UsesRs2_D` stop
 needless stalls when, e.g., an `addi`'s immediate bits happen to equal a register number.
 
@@ -186,6 +204,8 @@ needless stalls when, e.g., an `addi`'s immediate bits happen to equal a registe
 - **E**: the real outcome is known. If it differs from the prediction → redirect. The entry is updated
   (or allocated, for a taken branch or a `jal`) by every branch/jal leaving E. `jalr` and `mret` are never
   predicted, so they always redirect.
+
+![Branch prediction waveform](../../docs/media/wave_branch.png)
 
 ### Byte / half-word (`LoadStore.v`)
 Exactly as in the lab manual. `sb` of `0xAB` at an address ending in `10` → `WriteData_out = 0xABABABAB`,
@@ -252,7 +272,7 @@ the 2 comes free as a shift of 24 instead of 25), so the multiplier decides the 
 
 ![Mandelbrot and Julia frames from simulation](docs/fractal_frames.png)
 
-### Suggested demo script (about 3 minutes)
+### Demo script (about 3 minutes)
 1. All switches down. Tilt the board to fly around, hold BTNR to zoom into the edge. Point at the 7-seg:
    ~950 000 cycles per frame.
 2. Flip **SW2** (old multiplier): the picture crawls, and the 7-seg jumps about 10×. Flip it back. Flip **SW3**
@@ -340,11 +360,13 @@ is how the blank-OLED problem was found; `run_chip.sh` reruns it.
 | Start-up code, linker script, build script | `sw/crt0.s`, `sw/link.ld`, `sw/build.py` |
 | Regression, reference model, random programs, testbench | `sim/run_tests.py`, `sim/iss.py`, `sim/fuzz.py`, `sim/tb_cpu.v` |
 | Whole-chip simulation | `sim/chip/` |
-| Slides | `Lab4_Slides.pptx` |
-| Submission zip | `python3 make_submission.py --bit …` → `Group39_Friday_Lab4.zip` |
+| Slides | group deck: `submissions/Group39_Friday_Lab4/CG3207_Assignment4.pptx` (`Lab4_Slides.pptx` here is an earlier draft) |
+| Submission folder / zip | `python3 make_submission.py --bit … --zip` → `submissions/Group39_Friday_Lab4(.zip)` |
+| Waveform views for Vivado, Hin Lok's testbench package | `sim/enhancement_tests/` (`START_HERE.md`) |
+| Figures and frame renders in the READMEs | `../../docs/tools/` |
 
 ## AI assistance declaration (CG3207 lab manual)
-Tool: Claude (Anthropic), model Claude Opus 5.5, via claude.ai, 3–4 Nov 2026.
+Tool: Claude (Anthropic), model Claude Opus 5.5, via claude.ai, 3–6 Nov 2026.
 Prompts: "for this assignment, I want to integrate in the pmod oled display as well … complete all the
 compulsory and optional tasks as well"; "start all over again i want an enhancement that enhances
 performance critically, and ties in well while remaining creative and cool … also the pmod oled doesnt
