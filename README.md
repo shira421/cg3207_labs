@@ -1,4 +1,4 @@
-# CG3207 Computer Architecture: a RISC-V CPU, from one cycle to five stages
+# CG3207 Computer Architecture Lab
 
 <p align="center">
   <img src="docs/media/mandelbrot_zoom.gif" width="400" alt="Zooming into the Mandelbrot set">
