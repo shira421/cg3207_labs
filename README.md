@@ -13,7 +13,6 @@ Lab work for **CG3207 Computer Architecture** at the National University of Sing
 on a Digilent **Nexys 4 DDR** (Artix-7 `xc7a100tcsg324-1`) with Vivado 2023.2.
 Over four assignments, a RISC-V processor goes from a single-cycle RV32I core to a 5-stage pipelined RV32IM
 with a pipelined Booth multiplier, a custom fixed-point instruction, branch prediction and interrupts.
-Group 39 (Friday): Canary, Hin Lok and Qi Ye. Assignment 1 was individual.
 
 ## Highlights
 
