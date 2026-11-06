@@ -212,9 +212,10 @@ int main(void)
     INT_EN = BTNC;
     accel_level = ACCEL;                /* level reference (taken again after the first frame) */
     unsigned int frames = 0;
-#ifdef PICTURE                          /* for the docs: start in the Julia set (1) or zoomed in (2) */
+#ifdef PICTURE                          /* for the docs: Julia set (1), zoomed in (2), zoom flight (3) */
     if (PICTURE == 1) { julia = 1; jc_x = FX(-0.822); jc_y = FX(0.156); }   /* c = -0.8 + 0.156i at phase 0 */
-    else { centre_x = FX(-0.7453); centre_y = FX(0.1127); step = FX(3.0 / 96 / 8); }  /* seahorse valley */
+    else if (PICTURE == 2) { centre_x = FX(-0.7453); centre_y = FX(0.1127); step = FX(3.0 / 96 / 8); }  /* seahorse valley */
+    else { centre_x = FX(-0.7453); centre_y = FX(0.1127); }  /* (3) full view on seahorse valley: hold BTNR to zoom */
 #endif
 
     for (;;) {

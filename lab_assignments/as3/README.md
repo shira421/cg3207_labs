@@ -1,16 +1,27 @@
-# Assignment 3 — Multiplication / Division (Week 9 demo)
+# Assignment 3: multiplication and division (Week 9 demo)
+
+Multiply and divide (RV32M) for the single-cycle CPU, with a multi-cycle `MCycle` unit, a radix-2 Booth
+multiplier as the enhancement, and an interactive visualisation of it.
 
 This is its own Vivado project (`as3.xpr`), started as a copy of the Assignment 2 project in
 `../as2`, which stays as it was demoed. Open `as3.xpr` in Vivado for all Assignment 3 work.
 
-## Status
+## Results
 
-| Task | What was done | Verified | Still to do |
-|---|---|---|---|
-| 1 Division | Signed + unsigned restoring division in MCycle | `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass. Vivado: MCycle synthesised as top with **no warnings from MCycle.v** (see *Vivado notes*) | — |
-| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass. Worked on the board with the earlier multiplier (LED = 0xFF) | **Rebuild the bitstream** with the radix-2 Booth MCycle (mul now 33 cycles) and re-check on the board |
-| 3 Enhancement | Radix-2 Booth for signed multiplication (Hin Lok); slides done | `test_MCycle` (all 76 083 checks, incl. exhaustive 4/6-bit); gate-level sim of both versions; Vivado numbers on the slides | Slide numbers were measured with the division placeholder: re-run on the final MCycle.v or footnote it; include the testbench the slide's check counts come from |
-| 4 Visualisation | `booth_visualisation.html` (Hin Lok), plus a datapath diagram, cycle counts and hex input | Model checked against the RTL: A/Q/Q₋₁ after every edge identical to the Verilog simulation | Hin Lok's prompts in `prompt_history.md` |
+| Task | What was done | How it was verified |
+|---|---|---|
+| 1 Division | Signed + unsigned restoring division in MCycle | `test_MCycle`: exhaustive at width 4 and 6, corner cases + random at width 32 — 76 083 checks pass. MCycle synthesises as top with no warnings from MCycle.v |
+| 2 CPU | mul, mulh, mulhu, div, divu, rem, remu; stall on Busy; demo program | `test_Wrapper`: 229 checks pass; `cpu_check.py`: 6 703 RV32I checks pass; on the board the self-check showed LED = 0xFF (with the earlier multiplier) |
+| 3 Enhancement | Radix-2 Booth for signed multiplication (Hin Lok): 65 → **33 cycles** for a signed `mul` | `test_MCycle` (all 76 083 checks, incl. exhaustive 4/6-bit); gate-level simulation of both versions; Vivado numbers on the slides |
+| 4 Visualisation | `booth_visualisation.html` (Hin Lok), plus a datapath diagram, cycle counts and hex input | A/Q/Q₋₁ after every edge identical to the Verilog simulation |
+
+<p align="center">
+  <img src="../../docs/media/as3_booth_visualisation.png" width="49%" alt="Booth multiplier visualisation">
+  <img src="../../docs/media/as3_division_dataflow.png" width="49%" alt="Division dataflow walkthrough">
+  <br><sub>Left: <code>booth_visualisation.html</code>, stepping −3 × 5 one clock edge at a time.
+  Right: <code>docs/CG3207_Task1_Division_Dataflow.html</code>, the restoring division signal by signal.
+  Both are single HTML files; open them in a browser.</sub>
+</p>
 
 ## Where things live
 
@@ -204,17 +215,3 @@ numbers with SW15 up; then step through the same multiplication in `booth_visual
   ```
   For the CPU, run from `as3.srcs/sim_1/imports/as2` so the `.mem` files are found, and compile
   `test_Wrapper.v` with all the RTL `.v` files.
-
-## Checklist
-
-- [x] Task 1 — signed + unsigned division in MCycle, self-checking testbench
-- [x] Task 1 — synthesise MCycle as top in Vivado, check the warnings
-- [x] Task 2 — RV32M in the CPU, demo program, CPU-level simulation
-- [x] Task 2 — bitstream and board demo (earlier multiplier)
-- [ ] Task 2 — rebuild the bitstream with the radix-2 Booth MCycle and re-check on the board
-- [x] Task 3 — radix-2 Booth multiplier, testbench + gate-level check
-- [x] Task 3 — slides (`Task3_Booth_Slides.pdf`) with Vivado post-synthesis numbers
-- [ ] Task 3 — re-run the slide numbers on the final MCycle.v (or footnote them), and include the testbench behind the slide's check counts
-- [x] Task 4 — single-file HTML visualisation of the Booth multiplier, checked against the RTL
-- [ ] Task 4 — Hin Lok's prompts (and GUIDE.md) added to `prompt_history.md`
-- [ ] Submission zip `GroupXX_Monday/Friday_Asst3.zip`: modified .v files + testbenches, .bit, .asm, slides, .html, prompt history

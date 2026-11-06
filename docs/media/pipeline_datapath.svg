@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 600" width="1280" height="600" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="a-24292f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#24292f"/></marker>
+<marker id="a-d4700a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d4700a"/></marker>
+<marker id="a-3d8b37" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3d8b37"/></marker>
+<marker id="a-cf222e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker>
+</defs>
+<rect width="1280" height="600" fill="#ffffff"/>
+<rect x="20" y="14" width="220" height="34" rx="6" fill="#4C78A8"/>
+<text x="130" y="37" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle" >F · Fetch</text>
+<rect x="270" y="14" width="200" height="34" rx="6" fill="#72B7B2"/>
+<text x="370" y="37" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle" >D · Decode</text>
+<rect x="500" y="14" width="280" height="34" rx="6" fill="#F58518"/>
+<text x="640" y="37" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle" >E · Execute</text>
+<rect x="810" y="14" width="200" height="34" rx="6" fill="#E45756"/>
+<text x="910" y="37" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle" >M · Memory</text>
+<rect x="1040" y="14" width="200" height="34" rx="6" fill="#54A24B"/>
+<text x="1140" y="37" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle" >W · Write-back</text>
+<rect x="248" y="96" width="14" height="338" rx="3" fill="#8c959f"/>
+<text x="255" y="90" font-size="10" font-weight="normal" fill="#57606a" text-anchor="middle" >F/D</text>
+<rect x="478" y="96" width="14" height="338" rx="3" fill="#8c959f"/>
+<text x="485" y="90" font-size="10" font-weight="normal" fill="#57606a" text-anchor="middle" >D/E</text>
+<rect x="788" y="96" width="14" height="338" rx="3" fill="#8c959f"/>
+<text x="795" y="90" font-size="10" font-weight="normal" fill="#57606a" text-anchor="middle" >E/M</text>
+<rect x="1018" y="96" width="14" height="338" rx="3" fill="#8c959f"/>
+<text x="1025" y="90" font-size="10" font-weight="normal" fill="#57606a" text-anchor="middle" >M/W</text>
+<polygon points="30,125 56,137 56,203 30,215" fill="#ffffff" stroke="#24292f" stroke-width="1.6"/>
+<text x="43" y="173" font-size="9" font-weight="normal" fill="#57606a" text-anchor="middle" transform="rotate(-90 43 170)">next PC</text>
+<rect x="76" y="145" width="46" height="50" rx="7" fill="#e7edf3" stroke="#4C78A8" stroke-width="1.6"/>
+<text x="99" y="174" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >PC</text>
+<rect x="142" y="115" width="84" height="110" rx="7" fill="#e7edf3" stroke="#4C78A8" stroke-width="1.6"/>
+<text x="184" y="165.5" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >IROM</text>
+<text x="184" y="182.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >4 KB</text>
+<rect x="100" y="255" width="126" height="72" rx="7" fill="#e7edf3" stroke="#4C78A8" stroke-width="1.6"/>
+<text x="163" y="278" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle" >BTB</text>
+<text x="163" y="295" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >32 entries: tag,</text>
+<text x="163" y="312" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >target, 2-bit ctr</text>
+<rect x="24" y="330" width="40" height="28" rx="7" fill="#e7edf3" stroke="#4C78A8" stroke-width="1.6"/>
+<text x="44" y="348" font-size="12" font-weight="bold" fill="#1f2328" text-anchor="middle" >+4</text>
+<path d="M56,170 L76,170" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M122,170 L142,170" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M226,170 L248,170" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="229" y="163" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >instr</text>
+<path d="M110,195 L110,255" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<circle cx="110" cy="195" r="3" fill="#24292f"/>
+<path d="M88,195 L88,344 L64,344" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M44,330 L44,210" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M100,285 L52,285 L52,206" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="57" y="280" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >predicted</text>
+<rect x="290" y="92" width="160" height="58" rx="7" fill="#ecf5f4" stroke="#72B7B2" stroke-width="1.6"/>
+<text x="370" y="116.5" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >Decoder</text>
+<text x="370" y="133.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >+ mret, mulsr</text>
+<rect x="290" y="163" width="160" height="42" rx="7" fill="#ecf5f4" stroke="#72B7B2" stroke-width="1.6"/>
+<text x="370" y="188" font-size="12.5" font-weight="bold" fill="#1f2328" text-anchor="middle" >Extend (immediate)</text>
+<rect x="290" y="222" width="160" height="108" rx="7" fill="#ecf5f4" stroke="#72B7B2" stroke-width="1.6"/>
+<text x="370" y="263" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >Register file</text>
+<text x="370" y="280" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >x0-x31, 2 read / 1 write</text>
+<text x="370" y="297" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >write-through W → D</text>
+<path d="M262,170 L276,170" fill="none" stroke="#24292f" stroke-width="1.6"  />
+<path d="M276,121 L276,276" fill="none" stroke="#24292f" stroke-width="1.6"  />
+<path d="M276,121 L290,121" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M276,184 L290,184" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M276,276 L290,276" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M450,121 L478,121" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="452" y="114" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >control</text>
+<path d="M450,184 L478,184" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="452" y="177" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >imm</text>
+<path d="M450,255 L478,255" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="452" y="248" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >RD1</text>
+<path d="M450,300 L478,300" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="452" y="293" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >RD2</text>
+<polygon points="515,235 540,245 540,270 515,280" fill="#ffffff" stroke="#24292f" stroke-width="1.6"/>
+<text x="527.5" y="260.5" font-size="9" font-weight="normal" fill="#57606a" text-anchor="middle" transform="rotate(-90 527.5 257.5)">fwd A</text>
+<polygon points="515,285 540,295 540,320 515,330" fill="#ffffff" stroke="#24292f" stroke-width="1.6"/>
+<text x="527.5" y="310.5" font-size="9" font-weight="normal" fill="#57606a" text-anchor="middle" transform="rotate(-90 527.5 307.5)">fwd B</text>
+<rect x="565" y="235" width="85" height="80" rx="7" fill="#fdefe0" stroke="#F58518" stroke-width="1.6"/>
+<text x="607.5" y="279" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >ALU</text>
+<rect x="680" y="105" width="92" height="70" rx="7" fill="#fdefe0" stroke="#F58518" stroke-width="1.6"/>
+<text x="726" y="127" font-size="12.5" font-weight="bold" fill="#1f2328" text-anchor="middle" >Branch check</text>
+<text x="726" y="144" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >outcome, target,</text>
+<text x="726" y="161" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >prediction right?</text>
+<rect x="680" y="240" width="92" height="60" rx="7" fill="#fdefe0" stroke="#F58518" stroke-width="1.6"/>
+<text x="726" y="265.5" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle" >MCycle</text>
+<text x="726" y="282.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >div, 33 cycles</text>
+<rect x="565" y="340" width="207" height="52" rx="7" fill="#fdefe0" stroke="#F58518" stroke-width="1.6"/>
+<text x="668.5" y="361.5" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle" >PipeMulE</text>
+<text x="668.5" y="378.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >radix-4 Booth, CSA tree 18 → 4 rows</text>
+<path d="M492,255 L515,255" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M492,300 L515,300" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M540,257 L565,257" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M540,307 L565,295" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M492,184 L592,184 L592,235" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M625,235 L625,140 L680,140" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M550,257 L550,355 L565,355" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<circle cx="550" cy="257" r="3" fill="#24292f"/>
+<path d="M556,307 L556,377 L565,377" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<circle cx="556" cy="307" r="3" fill="#24292f"/>
+<path d="M650,275 L665,275 L665,320 L788,320" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M772,270 L778,270 L778,320" fill="none" stroke="#24292f" stroke-width="1.6"  />
+<circle cx="778" cy="320" r="3" fill="#24292f"/>
+<text x="682" y="314" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >ExecResult</text>
+<path d="M772,366 L788,366" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<rect x="840" y="140" width="145" height="120" rx="7" fill="#fbe9e9" stroke="#E45756" stroke-width="1.6"/>
+<text x="912.5" y="170" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle" >DMEM 4 KB</text>
+<text x="912.5" y="187" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >+ MMIO: OLED, LEDs,</text>
+<text x="912.5" y="204" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >7-seg, accelerometer,</text>
+<text x="912.5" y="221" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >CPU_CTRL, INT_EN</text>
+<text x="912.5" y="238" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >StoreAlign: sb, sh</text>
+<rect x="840" y="340" width="145" height="52" rx="7" fill="#fbe9e9" stroke="#E45756" stroke-width="1.6"/>
+<text x="912.5" y="361.5" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle" >PipeMulM</text>
+<text x="912.5" y="378.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >2 CSA, add, [k+31:k]</text>
+<path d="M802,320 L1018,320" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M822,320 L822,205 L840,205" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<circle cx="822" cy="320" r="3" fill="#24292f"/>
+<text x="826" y="197" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >addr</text>
+<path d="M802,366 L840,366" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M985,366 L1018,366" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="988" y="359" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >product</text>
+<path d="M985,205 L1018,205" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<text x="988" y="198" font-size="9.5" font-weight="normal" fill="#57606a" text-anchor="start" >data</text>
+<rect x="1060" y="180" width="88" height="50" rx="7" fill="#e8f2e7" stroke="#54A24B" stroke-width="1.6"/>
+<text x="1104" y="200.5" font-size="12.5" font-weight="bold" fill="#1f2328" text-anchor="middle" >LoadExtend</text>
+<text x="1104" y="217.5" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >lb lh lbu lhu</text>
+<polygon points="1172,185 1202,200 1202,370 1172,385" fill="#ffffff" stroke="#24292f" stroke-width="1.6"/>
+<text x="1187" y="288" font-size="9" font-weight="normal" fill="#57606a" text-anchor="middle" transform="rotate(-90 1187 285)">result</text>
+<path d="M1032,205 L1060,205" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M1148,205 L1172,205" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M1032,320 L1172,320" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M1032,366 L1172,366" fill="none" stroke="#24292f" stroke-width="1.6"  marker-end="url(#a-24292f)"/>
+<path d="M1202,285 L1225,285 L1225,425 L370,425 L370,332" fill="none" stroke="#3d8b37" stroke-width="2"  marker-end="url(#a-3d8b37)"/>
+<text x="1225" y="447" font-size="10.5" font-weight="normal" fill="#3d8b37" text-anchor="end" >Result_W → register file (D reads it in the same cycle)</text>
+<path d="M826,320 L826,405 L534,405 L534,324" fill="none" stroke="#d4700a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#a-d4700a)"/>
+<circle cx="826" cy="320" r="3" fill="#d4700a"/>
+<text x="600" y="418" font-size="10.5" font-weight="normal" fill="#d4700a" text-anchor="start" >forward from M (ExecResult_M)</text>
+<path d="M522,425 L522,328" fill="none" stroke="#3d8b37" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#a-3d8b37)"/>
+<circle cx="522" cy="425" r="3" fill="#3d8b37"/>
+<text x="512" y="418" font-size="10.5" font-weight="normal" fill="#3d8b37" text-anchor="end" >forward from W</text>
+<path d="M726,105 L726,76 L43,76 L43,129" fill="none" stroke="#cf222e" stroke-width="2"  marker-end="url(#a-cf222e)"/>
+<text x="70" y="69" font-size="10.5" font-weight="normal" fill="#cf222e" text-anchor="start" >Redirect_E: mispredicted branch or jal, any jalr, mret → correct PC, flush D and E.  An interrupt goes to 0x00400004 the same way.</text>
+<rect x="240" y="468" width="800" height="46" rx="7" fill="#f6f8fa" stroke="#8c959f" stroke-width="1.4"/>
+<text x="640" y="488" font-size="14" font-weight="bold" fill="#1f2328" text-anchor="middle" >Hazard unit</text>
+<text x="640" y="505" font-size="11" font-weight="normal" fill="#57606a" text-anchor="middle" >forward select (M before W) · load / multiply-use stall · flush on redirect or interrupt · MCycle stall</text>
+<path d="M255,468 L255,436" fill="none" stroke="#8c959f" stroke-width="1.2" stroke-dasharray="3 3" />
+<path d="M485,468 L485,436" fill="none" stroke="#8c959f" stroke-width="1.2" stroke-dasharray="3 3" />
+<path d="M795,468 L795,436" fill="none" stroke="#8c959f" stroke-width="1.2" stroke-dasharray="3 3" />
+<path d="M1025,468 L1025,436" fill="none" stroke="#8c959f" stroke-width="1.2" stroke-dasharray="3 3" />
+<path d="M20,552 L54,552" fill="none" stroke="#24292f" stroke-width="2"  marker-end="url(#a-24292f)"/>
+<text x="62" y="556" font-size="12" font-weight="normal" fill="#1f2328" text-anchor="start" >datapath</text>
+<path d="M136,552 L170,552" fill="none" stroke="#d4700a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a-d4700a)"/>
+<text x="178" y="556" font-size="12" font-weight="normal" fill="#1f2328" text-anchor="start" >forwarding</text>
+<path d="M266,552 L300,552" fill="none" stroke="#3d8b37" stroke-width="2"  marker-end="url(#a-3d8b37)"/>
+<text x="308" y="556" font-size="12" font-weight="normal" fill="#1f2328" text-anchor="start" >write-back</text>
+<path d="M396,552 L430,552" fill="none" stroke="#cf222e" stroke-width="2"  marker-end="url(#a-cf222e)"/>
+<text x="438" y="556" font-size="12" font-weight="normal" fill="#1f2328" text-anchor="start" >redirect (next PC)</text>
+<rect x="582" y="541" width="10" height="22" rx="2" fill="#8c959f"/>
+<text x="600" y="556" font-size="12" font-weight="normal" fill="#1f2328" text-anchor="start" >pipeline register (stall = hold, flush = bubble)</text>
+<text x="20" y="585" font-size="11.5" font-weight="normal" fill="#57606a" text-anchor="start" >Control signals travel with each instruction through the same pipeline registers. Every multiply starts in E and finishes in M, one per cycle.</text>
+</svg>
